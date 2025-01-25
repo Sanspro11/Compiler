@@ -1,0 +1,481 @@
+#pragma once
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include "ASTnode.hpp"
+
+#pragma pack(push, 1) // no padding between struct properties
+
+struct Elf64Header {
+    unsigned char e_ident[16]; // ELF identification
+    uint16_t e_type;           // Object file type
+    uint16_t e_machine;        // Machine architecture
+    uint32_t e_version;        // ELF version
+    uint64_t e_entry;          // Entry point address (unused in relocatable)
+    uint64_t e_phoff;          // Program header table offset
+    uint64_t e_shoff;          // Section header table offset
+    uint32_t e_flags;          // Processor-specific flags
+    uint16_t e_ehsize;         // ELF header size
+    uint16_t e_phentsize;      // Program header size
+    uint16_t e_phnum;          // Number of program headers
+    uint16_t e_shentsize;      // Section header size
+    uint16_t e_shnum;          // Number of section headers
+    uint16_t e_shstrndx;       // Section name string table index
+};
+
+struct SectionHeader {
+    uint32_t sh_name;      // Section name (index into shstrtab)
+    uint32_t sh_type;      // Section type
+    uint64_t sh_flags;     // Section flags
+    uint64_t sh_addr;      // Virtual address in memory (unused in relocatable)
+    uint64_t sh_offset;    // Offset in file
+    uint64_t sh_size;      // Size of section
+    uint32_t sh_link;      // Link to other section
+    uint32_t sh_info;      // Additional section info (e.g. symtab "local" cutoff)
+    uint64_t sh_addralign; // Alignment of section
+    uint64_t sh_entsize;   // Entry size (if section holds a table)
+};
+
+struct Symbol {
+    uint32_t st_name;  // Symbol name (index into .strtab)
+    unsigned char st_info; 
+    unsigned char st_other; 
+    uint16_t st_shndx; // Section index
+    uint64_t st_value; // Value (address or offset)
+    uint64_t st_size;  // Size of symbol
+};
+
+struct Elf64_Rela {
+    uint64_t r_offset;  // Offset in the section to be relocated
+    uint64_t r_info;    // Symbol table index and type of relocation
+    int64_t  r_addend;  // Constant addend
+};
+
+#pragma pack(pop) // return the padding
+
+
+// ELF symbol binding and type
+inline unsigned char ELF64_ST_BIND(unsigned char bind) { return (bind << 4); }
+inline unsigned char ELF64_ST_TYPE(unsigned char type) { return (type & 0xF); }
+
+static const unsigned char LOCAL_SYMBOL  = 0; // Local symbol
+static const unsigned char GLOBAL_SYMBOL = 1; // Global symbol
+
+//symbols types
+static const unsigned char OBJECT_SYMBOL_TYPE = 1; // Data object
+static const unsigned char FUNCTION_SYMBOL_TYPE = 2; // Function
+static const unsigned char SECTION_SYMBOL_TYPE= 3; // Section symbol
+
+
+
+class codeGenerator {
+public:
+    std::string entryFunctionName;
+
+    bool  generateObjectFile(ProgramRoot* root, const std::string filename) {
+
+        // .text section ------------------------------------------------------------
+        std::vector<uint8_t> textData;
+        for (const ASTNode* element : root->programElements) {
+            if (element->type == NodeType::Function) {
+                std::vector<uint8_t> functionCode = generateCodeFromFunction((Function*)element);
+                    textData.insert(textData.end(),functionCode.begin(),functionCode.end());
+            }
+        }
+
+        // .data section ------------------------------------------------------------
+        std::vector<uint8_t> dataData = {
+            0x78, 0x56, 0x34, 0x12
+        };
+
+        //strtab section ------------------------------------------------------------
+        std::string strtabContents;
+        strtabContents.push_back('\0');             // [0] empty
+        strtabContents += "_start";  // offset=1
+        strtabContents.push_back('\0');
+        size_t offsetMain = 1;
+
+        size_t offsetMyGlobalData = strtabContents.size();
+        strtabContents += "myGlobalData";
+        strtabContents.push_back('\0');
+
+        size_t offsetMyGlobalBss = strtabContents.size();
+        strtabContents += "myGlobalBss";
+        strtabContents.push_back('\0');
+
+        // TODO add other functions here
+
+        // shstrtab section ------------------------------------------------------------
+        // section header string table
+        std::string shstrtabContents;
+        shstrtabContents.push_back('\0');
+        size_t offText    = 1;
+        shstrtabContents += ".text";
+        shstrtabContents.push_back('\0');
+        size_t offData    = shstrtabContents.size();
+        shstrtabContents += ".data";
+        shstrtabContents.push_back('\0');
+        size_t offBss     = shstrtabContents.size();
+        shstrtabContents += ".bss";
+        shstrtabContents.push_back('\0');
+        size_t offSymtab  = shstrtabContents.size();
+        shstrtabContents += ".symtab";
+        shstrtabContents.push_back('\0');
+        size_t offStrtab  = shstrtabContents.size();
+        shstrtabContents += ".strtab";
+        shstrtabContents.push_back('\0');
+        size_t offRelaText = shstrtabContents.size();
+        shstrtabContents += ".rela.text";
+        shstrtabContents.push_back('\0');
+        size_t offShstrtab = shstrtabContents.size();
+        shstrtabContents += ".shstrtab";
+        shstrtabContents.push_back('\0');
+
+
+        // .symtab section ------------------------------------------------------------
+        std::vector<Symbol> symtab;
+        symtab.resize(7); // 7 static symbols for now
+        // NULL .text .data .bss _start data bss (add functions here)
+        // TODO: change size of symtab with other functions
+
+        // Making all symbols
+        // 0) STN_UNDEF (all fields = 0)
+        symtab[0] = Symbol{};
+
+        // 1) .text section symbol
+        {
+            Symbol s{};
+            s.st_name  = 0;  // Usually 0 for SECTION_SYMBOL_TYPE
+            s.st_info  = ELF64_ST_BIND(LOCAL_SYMBOL) | ELF64_ST_TYPE(SECTION_SYMBOL_TYPE);
+            s.st_other = 0;
+            s.st_shndx = 1;  // index of .text
+            s.st_value = 0;  // offset within .text
+            s.st_size  = 0;  
+            symtab[1] = s;
+        }
+
+        // 2) .data section symbol
+        {
+            Symbol s{};
+            s.st_name  = 0;
+            s.st_info  = ELF64_ST_BIND(LOCAL_SYMBOL) | ELF64_ST_TYPE(SECTION_SYMBOL_TYPE);
+            s.st_shndx = 2;  // index of .data
+            symtab[2] = s;
+        }
+
+        // 3) .bss section symbol
+        {
+            Symbol s{};
+            s.st_name  = 0;
+            s.st_info  = ELF64_ST_BIND(LOCAL_SYMBOL) | ELF64_ST_TYPE(SECTION_SYMBOL_TYPE);
+            s.st_shndx = 3;  // index of .bss
+            symtab[3] = s;
+        }
+
+        // 4) main (global function)
+        {
+            Symbol s{};
+            s.st_name  = offsetMain; // index in .strtab
+            s.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(FUNCTION_SYMBOL_TYPE);
+            s.st_shndx = 1;                // in .text
+            s.st_value = 0;                // offset from start of .text
+            s.st_size  = textData.size();  // function size
+            symtab[4] = s;
+        }
+        // TODO: add symbols for other functions
+
+        // 5) myGlobalData (global object in .data)
+        {
+            Symbol s{};
+            s.st_name  = offsetMyGlobalData;
+            s.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(OBJECT_SYMBOL_TYPE);
+            s.st_shndx = 2;                 // .data
+            s.st_value = 0;                 // offset in .data
+            s.st_size  = dataData.size();   // 4 bytes
+            symtab[5] = s;
+        }
+
+        // 6) myGlobalBss (global object in .bss)
+        {
+            Symbol s{};
+            s.st_name  = offsetMyGlobalBss;
+            s.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(OBJECT_SYMBOL_TYPE);
+            s.st_shndx = 3;      // .bss
+            s.st_value = 0;      // offset in .bss
+            s.st_size  = 4;      // 4 bytes reserved
+            symtab[6] = s;
+        }
+
+        const uint8_t* symtabRaw = reinterpret_cast<const uint8_t*>(symtab.data());
+        size_t symtabSizeInBytes = symtab.size() * sizeof(Symbol);
+
+        // elf header ------------------------------------------------------------
+        const int numSections = 8;
+
+        Elf64Header ehdr{};
+        ehdr.e_ident[0] = 0x7F;
+        ehdr.e_ident[1] = 'E';
+        ehdr.e_ident[2] = 'L';
+        ehdr.e_ident[3] = 'F';
+        ehdr.e_ident[4] = 2; // elf 64 bit
+        ehdr.e_ident[5] = 1; // elf little endian
+        ehdr.e_ident[6] = 1; // elf version
+
+        ehdr.e_type    = 1;  // relocatable
+        ehdr.e_machine = 62; // x86_64 architecture
+        ehdr.e_version = 1;  // elf version
+        ehdr.e_entry   = 0;  // not used in .o
+        ehdr.e_phoff   = 0;  // not used in .o
+        ehdr.e_shoff = sizeof(Elf64Header); // start of section headers
+        ehdr.e_flags   = 0;
+        ehdr.e_ehsize  = sizeof(Elf64Header);
+        ehdr.e_phentsize = 0;
+        ehdr.e_phnum     = 0;
+        ehdr.e_shentsize = sizeof(SectionHeader);
+        ehdr.e_shnum     = numSections;
+        // The section containing section names is .shstrtab (index=6)
+        ehdr.e_shstrndx  = 7;
+
+
+        // Section headers ------------------------------------------------------------
+        std::vector<SectionHeader> shdr(numSections);
+
+        // 0: null
+        shdr[0].sh_type = 0; // section type NULL
+
+        // 1: .text
+        {
+            SectionHeader &sh = shdr[1];
+            sh.sh_name      = offText;
+            sh.sh_type      = 1; // progbits section type (loaded into memory)
+            sh.sh_flags     = 0x2 | 0x4; // loaded and excecutable
+            sh.sh_offset    = 0;        // filled later
+            sh.sh_size      = textData.size();
+            sh.sh_addralign = 1;        // minimal alignment
+        }
+
+        // 2: .data
+        {
+            SectionHeader &sh = shdr[2];
+            sh.sh_name      = offData;
+            sh.sh_type      = 1; // progbits section type (loaded into memory)
+            sh.sh_flags     = 0x2 | 0x1; // loaded and writable
+            sh.sh_offset    = 0;        // filled later
+            sh.sh_size      = dataData.size();
+            sh.sh_addralign = 1;
+        }
+
+        // 3: .bss
+        {
+            SectionHeader &sh = shdr[3];
+            sh.sh_name      = offBss;
+            sh.sh_type      = 8; // nobits (for bss)
+            sh.sh_flags     = 0x2 | 0x1; // loaded and writable
+            sh.sh_offset    = 0;        // filled later
+            sh.sh_size      = 4; // we said 4 bytes for myGlobalBss
+            sh.sh_addralign = 1;
+        }
+
+        // 4: .symtab
+        {
+            SectionHeader &sh = shdr[4];
+            sh.sh_name      = offSymtab;
+            sh.sh_type      = 2; // symtab 
+            sh.sh_link      = 5;
+            sh.sh_info      = 4;
+            sh.sh_size      = symtabSizeInBytes;
+            sh.sh_addralign = 8; // 8-byte alignment for Symbol
+            sh.sh_entsize   = sizeof(Symbol);
+        }
+
+        // 5: .strtab
+        {
+            SectionHeader &sh = shdr[5];
+            sh.sh_name      = offStrtab;
+            sh.sh_type      = 3; // strtab
+            sh.sh_size      = strtabContents.size();
+            sh.sh_addralign = 1;
+        }
+
+        // 6: .rela.text 
+        {
+            SectionHeader &sh = shdr[6];
+            sh.sh_name      = offRelaText;  // ".rela.text"
+            sh.sh_type      = 4;           // SHT_RELA
+            sh.sh_flags     = 0;           
+            // sh_link = index of the .symtab (which is 4)
+            sh.sh_link      = 4;
+            // sh_info = index of section to which relocations apply => .text = 1
+            sh.sh_info      = 1;
+            sh.sh_addralign = 8;
+            sh.sh_entsize   = sizeof(Elf64_Rela);
+        }
+
+        // 7: .shstrtab
+        {
+            SectionHeader &sh = shdr[6];
+            sh.sh_name      = offShstrtab;
+            sh.sh_type      = 3; // strtab
+            sh.sh_size      = shstrtabContents.size();
+            sh.sh_addralign = 1;
+        }
+
+
+        // Writing to file -------------------------------------------
+        uint64_t offset = sizeof(Elf64Header) + numSections * sizeof(SectionHeader);
+
+        // .text
+        shdr[1].sh_offset = offset;
+        offset += shdr[1].sh_size;
+
+        // .data
+        shdr[2].sh_offset = offset;
+        offset += shdr[2].sh_size;
+
+        // .bss is SHT_NOBITS => doesn't occupy space in the file, so no offset increment
+        shdr[3].sh_offset = offset; // Typically equals offset, but size is 0 in file
+
+        // .symtab: align to 8 bytes if needed
+        if (offset % 8 != 0) {
+            uint64_t pad = 8 - (offset % 8);
+            offset += pad;
+        }
+        shdr[4].sh_offset = offset;
+        shdr[4].sh_size   = symtabSizeInBytes;
+        offset += symtabSizeInBytes;
+
+        // .strtab
+        shdr[5].sh_offset = offset;
+        offset += shdr[5].sh_size; // strtabContents.size()
+
+        // .rela.text — also must be aligned to 8
+        if (offset % 8 != 0) {
+            uint64_t pad = 8 - (offset % 8);
+            offset += pad;
+        }
+        shdr[6].sh_offset = offset;
+        // the size is #entries * sizeof(Elf64_Rela)
+        shdr[6].sh_size   = relaTextEntries.size() * sizeof(Elf64_Rela);
+        offset += shdr[6].sh_size;
+
+        // .shstrtab
+        shdr[7].sh_offset = offset;
+        offset += shdr[7].sh_size;
+
+        // 7) Write out the ELF file
+        std::ofstream ofs(filename, std::ios::binary);
+        if (!ofs) return false;
+
+        // ELF header
+        ofs.write(reinterpret_cast<const char*>(&ehdr), sizeof(ehdr));
+        // Section headers
+        ofs.write(reinterpret_cast<const char*>(shdr.data()), shdr.size() * sizeof(SectionHeader));
+        // .text
+        ofs.write(reinterpret_cast<const char*>(textData.data()), textData.size());
+        // .data
+        ofs.write(reinterpret_cast<const char*>(dataData.data()), dataData.size());
+        // .bss => SHT_NOBITS => nothing to write
+        // pad if needed for alignment to .symtab
+        {
+            uint64_t currentPos = ofs.tellp();
+            uint64_t neededPad = (8 - (currentPos % 8)) % 8;
+            if (neededPad) {
+                std::vector<char> pad(neededPad, 0);
+                ofs.write(pad.data(), pad.size());
+            }
+        }
+        // .symtab
+        ofs.write(reinterpret_cast<const char*>(symtabRaw), symtabSizeInBytes);
+        // .strtab
+        ofs.write(strtabContents.data(), strtabContents.size());
+        // .rela.text
+        {
+            // pad if needed
+            uint64_t currentPos = ofs.tellp();
+            uint64_t neededPad = (8 - (currentPos % 8)) % 8;
+            if (neededPad) {
+                std::vector<char> pad(neededPad, 0);
+                ofs.write(pad.data(), pad.size());
+            }
+            // Now write the relocation entries
+            for (auto &rel : relaTextEntries) {
+                ofs.write(reinterpret_cast<const char*>(&rel), sizeof(rel));
+            }
+        }
+        // .shstrtab
+        ofs.write(shstrtabContents.data(), shstrtabContents.size());
+
+        ofs.close();
+        return true;
+    }
+
+private:
+    // all relocations
+    std::vector<Elf64_Rela> relaTextEntries;
+
+
+    std::vector<uint8_t> exitSyscall(uint8_t num) {
+        std::vector<uint8_t> code = {
+            0x48, 0xc7, 0xc0, 0x3c, 0x00, 0x00, 0x00, // mov rax, 0x3c (exit syscall)
+            0x48, 0xc7, 0xc7, num, 0x00, 0x00, 0x00, // mov rdi, num (0-255)
+            0x0f, 0x05 // syscall
+        };
+        return code;
+    }
+
+    std::vector<uint8_t> call() {
+        std::vector<uint8_t> code = {
+            0xe8, 0x00, 0x00, 0x00, 0x00  
+        };
+        return code;
+        // the address of the call is being relocated by .rela.text
+    }
+    std::vector<uint8_t> generateCodeFromFunction(Function* function) {
+        std::vector<uint8_t> code;
+        bool inMain = function->name == entryFunctionName;
+
+        for (const ASTNode* statement : function->codeBlock->statements) {
+            if (statement->type == NodeType::ReturnStatement) {
+                ReturnStatement* returnStatement = (ReturnStatement*)statement;
+                // only supports static returns for now
+                if (inMain) {
+                    Constant* constantValue;
+                    // only supports constant returns
+                    if (returnStatement->expression->type == NodeType::Expression) {
+                        // implement expression
+                        Expression* returnExpression = (Expression*)returnStatement->expression;
+                        constantValue = (Constant*)returnExpression->value;
+                    }
+                    else if (returnStatement->expression->type == NodeType::Constant) {
+                        constantValue = (Constant*)returnStatement->expression;
+                    }
+                    std::string stringValue = constantValue->value;
+                    uint8_t value = std::stoi(stringValue);
+                    std::vector<uint8_t> codeForExit = exitSyscall(value);
+                    code.insert(code.end(),codeForExit.begin(),codeForExit.end());
+                }
+                else {
+                    // add ret
+                }
+            }
+
+            else if (statement->type == NodeType::FunctionCall) {
+                
+            }
+
+            // implement other statements
+        }
+
+
+        // end of function
+        if (inMain) {
+            std::vector<uint8_t> codeForExit = exitSyscall(0);
+            code.insert(code.end(),codeForExit.begin(),codeForExit.end());
+        }
+        else {
+            // add ret here
+        }
+        return code;
+    }
+};
