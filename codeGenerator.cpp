@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_map>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -58,6 +59,7 @@ struct Elf64_Rela {
 // ELF symbol binding and type
 inline unsigned char ELF64_ST_BIND(unsigned char bind) { return (bind << 4); }
 inline unsigned char ELF64_ST_TYPE(unsigned char type) { return (type & 0xF); }
+#define ELF64_R_INFO(sym, type)  (((uint64_t)(sym) << 32) | ((type) & 0xFFFFFFFF)) // Combine symbol and type
 
 static const unsigned char LOCAL_SYMBOL  = 0; // Local symbol
 static const unsigned char GLOBAL_SYMBOL = 1; // Global symbol
@@ -80,21 +82,23 @@ public:
         for (const ASTNode* element : root->programElements) {
             if (element->type == NodeType::Function) {
                 std::vector<uint8_t> functionCode = generateCodeFromFunction((Function*)element);
-                    textData.insert(textData.end(),functionCode.begin(),functionCode.end());
+                textData.insert(textData.end(),functionCode.begin(),functionCode.end());
             }
         }
 
         // .data section ------------------------------------------------------------
         std::vector<uint8_t> dataData = {
-            0x78, 0x56, 0x34, 0x12
+            0x78, 0x56, 0x34, 0x12 // random data
         };
 
         //strtab section ------------------------------------------------------------
         std::string strtabContents;
         strtabContents.push_back('\0');             // [0] empty
+        /*
         strtabContents += "_start";  // offset=1
         strtabContents.push_back('\0');
         size_t offsetMain = 1;
+        */
 
         size_t offsetMyGlobalData = strtabContents.size();
         strtabContents += "myGlobalData";
@@ -104,8 +108,14 @@ public:
         strtabContents += "myGlobalBss";
         strtabContents.push_back('\0');
 
-        // TODO add other functions here
 
+        // TODO add other functions here
+        for (size_t i = 0; i < functionSymbolNames.size(); ++i) {
+            size_t offset = strtabContents.size();
+            functionSymbols[i].st_name = offset; // put str offset in symbol
+            strtabContents += functionSymbolNames[i];
+            strtabContents.push_back('\0');
+        }
         // shstrtab section ------------------------------------------------------------
         // section header string table
         std::string shstrtabContents;
@@ -135,9 +145,8 @@ public:
 
         // .symtab section ------------------------------------------------------------
         std::vector<Symbol> symtab;
-        symtab.resize(7); // 7 static symbols for now
-        // NULL .text .data .bss _start data bss (add functions here)
-        // TODO: change size of symtab with other functions
+        symtab.resize(6 + functionSymbols.size()); // 6 static + functions
+        // NULL .text .data .bss data bss functions...
 
         // Making all symbols
         // 0) STN_UNDEF (all fields = 0)
@@ -172,7 +181,44 @@ public:
             s.st_shndx = 3;  // index of .bss
             symtab[3] = s;
         }
+        // 4) myGlobalData (global object in .data)
+        {
+            Symbol s{};
+            s.st_name  = offsetMyGlobalData;
+            s.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(OBJECT_SYMBOL_TYPE);
+            s.st_shndx = 2;                 // .data
+            s.st_value = 0;                 // offset in .data
+            s.st_size  = dataData.size();   // 4 bytes
+            symtab[4] = s;
+        }
 
+        // 5) myGlobalBss (global object in .bss)
+        {
+            Symbol s{};
+            s.st_name  = offsetMyGlobalBss;
+            s.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(OBJECT_SYMBOL_TYPE);
+            s.st_shndx = 3;      // .bss
+            s.st_value = 0;      // offset in .bss
+            s.st_size  = 4;      // 4 bytes reserved
+            symtab[5] = s;
+        }
+        size_t symTabOffset = 6;
+        // add all function symbols
+        for (size_t i = 0; i < functionSymbols.size(); ++i) {
+            symtab[symTabOffset] = functionSymbols[i];
+            std::string funcName = functionSymbolNames[i];
+            nameToSymbolOffset[funcName] = symTabOffset;
+            ++symTabOffset;
+        }
+
+        for (size_t i = 0; i < relaTextEntries.size(); ++i ) {
+            uint32_t symIndex = nameToSymbolOffset[relaFuncStrings[i]];
+
+            relaTextEntries[i].r_info = ELF64_R_INFO(symIndex,2);
+            // symbol index and R_X86_64_PC32
+        }
+
+        /*
         // 4) main (global function)
         {
             Symbol s{};
@@ -183,35 +229,15 @@ public:
             s.st_size  = textData.size();  // function size
             symtab[4] = s;
         }
-        // TODO: add symbols for other functions
+        */
 
-        // 5) myGlobalData (global object in .data)
-        {
-            Symbol s{};
-            s.st_name  = offsetMyGlobalData;
-            s.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(OBJECT_SYMBOL_TYPE);
-            s.st_shndx = 2;                 // .data
-            s.st_value = 0;                 // offset in .data
-            s.st_size  = dataData.size();   // 4 bytes
-            symtab[5] = s;
-        }
-
-        // 6) myGlobalBss (global object in .bss)
-        {
-            Symbol s{};
-            s.st_name  = offsetMyGlobalBss;
-            s.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(OBJECT_SYMBOL_TYPE);
-            s.st_shndx = 3;      // .bss
-            s.st_value = 0;      // offset in .bss
-            s.st_size  = 4;      // 4 bytes reserved
-            symtab[6] = s;
-        }
 
         const uint8_t* symtabRaw = reinterpret_cast<const uint8_t*>(symtab.data());
         size_t symtabSizeInBytes = symtab.size() * sizeof(Symbol);
 
         // elf header ------------------------------------------------------------
         const int numSections = 8;
+        // null, .text, .data, .bss, .symtab, .strtab, .shstrtab, .rela.text 
 
         Elf64Header ehdr{};
         ehdr.e_ident[0] = 0x7F;
@@ -314,7 +340,7 @@ public:
 
         // 7: .shstrtab
         {
-            SectionHeader &sh = shdr[6];
+            SectionHeader &sh = shdr[7];
             sh.sh_name      = offShstrtab;
             sh.sh_type      = 3; // strtab
             sh.sh_size      = shstrtabContents.size();
@@ -413,6 +439,13 @@ public:
 private:
     // all relocations
     std::vector<Elf64_Rela> relaTextEntries;
+    std::vector<std::string> relaFuncStrings;
+
+    std::vector<Symbol> functionSymbols;
+    std::vector<std::string> functionSymbolNames;
+
+    std::unordered_map<std::string,size_t> nameToSymbolOffset;
+    size_t currentCodeOffset = 0;
 
 
     std::vector<uint8_t> exitSyscall(uint8_t num) {
@@ -437,9 +470,11 @@ private:
 
         for (const ASTNode* statement : function->codeBlock->statements) {
             if (statement->type == NodeType::ReturnStatement) {
+                // check return type here
+
                 ReturnStatement* returnStatement = (ReturnStatement*)statement;
                 // only supports static returns for now
-                if (inMain) {
+                if (inMain) { // supposes int return
                     Constant* constantValue;
                     // only supports constant returns
                     if (returnStatement->expression->type == NodeType::Expression) {
@@ -452,16 +487,27 @@ private:
                     }
                     std::string stringValue = constantValue->value;
                     uint8_t value = std::stoi(stringValue);
-                    std::vector<uint8_t> codeForExit = exitSyscall(value);
+                    auto codeForExit = exitSyscall(value);
                     code.insert(code.end(),codeForExit.begin(),codeForExit.end());
                 }
                 else {
-                    // add ret
+                    code.push_back(0xC3); // void ret
                 }
             }
 
             else if (statement->type == NodeType::FunctionCall) {
-                
+                FunctionCall* functionCall = (FunctionCall*)statement;
+                auto callCode = call();
+                size_t callOffset = code.size() + currentCodeOffset;
+                code.insert(code.end(),callCode.begin(),callCode.end());
+
+                // add .rela.text entry
+                Elf64_Rela reloc{};
+                reloc.r_offset = callOffset + 1;
+                reloc.r_addend = -4; // constant
+                // add reloc.info later (.symtab index + relocation type)
+                relaTextEntries.push_back(reloc);
+                relaFuncStrings.push_back(functionCall->name);
             }
 
             // implement other statements
@@ -470,12 +516,24 @@ private:
 
         // end of function
         if (inMain) {
-            std::vector<uint8_t> codeForExit = exitSyscall(0);
-            code.insert(code.end(),codeForExit.begin(),codeForExit.end());
+            auto exitCode = exitSyscall(0);
+            code.insert(code.end(),exitCode.begin(),exitCode.end());
         }
         else {
-            // add ret here
+            code.push_back(0xC3); // ret
         }
+        // add symbol entry
+        Symbol symbol{};
+
+        //symbol.st_name  = index in .strtab, taken care of later
+        symbol.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(FUNCTION_SYMBOL_TYPE);
+        symbol.st_shndx = 1;                // in .text
+        symbol.st_value = currentCodeOffset;// offset from start of .text
+        symbol.st_size  = code.size();  // function size
+        functionSymbols.push_back(symbol);
+        functionSymbolNames.push_back(function->name);
+
+        currentCodeOffset += code.size();
         return code;
     }
 };

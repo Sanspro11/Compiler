@@ -24,10 +24,15 @@ struct ASTNode {
 
 struct ReturnStatement : public ASTNode {
     ASTNode* expression;  
-    ReturnStatement() { type = NodeType::ReturnStatement; }
+    ReturnStatement() { type = NodeType::ReturnStatement; expression = nullptr; }
     void print() override {
         std::cout << "Return statement: ";
-        expression->print();
+        if (expression != nullptr){
+            expression->print();
+        }
+        else {
+           std::cout << "Void return";
+        }
     }
 };
 
@@ -94,5 +99,15 @@ struct FunctionCall : public ASTNode {
     FunctionCall() { type = NodeType::FunctionCall; }
     void print() override {
         std::cout << "FunctionCall: " << name;
+        if (parameters.size() == 0) {
+            std::cout << " with no parameters";
+        }
+        else {
+            std::cout << " with parameters: ";
+            for (const std::string& parameter : parameters) {
+                std::cout << parameter << ", ";
+            }
+            std::cout << "\n";
+        }
     }
 };

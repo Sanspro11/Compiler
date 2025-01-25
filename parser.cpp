@@ -45,6 +45,9 @@ private:
             if (current().type == tokenType::CONSTANT) {
                 returnStmt->expression = parseExpression();
             }
+            else {
+                returnStmt->expression = nullptr;
+            }
 
             advance(); // ;
 

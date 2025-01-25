@@ -1,4 +1,3 @@
-#include <iostream>
 #include <vector>
 #include <fstream>
 #include <string>
@@ -28,6 +27,7 @@ int main(int argc, char* argv[]) {
         tokens[i].print();
         std::cout << "\n";
     }
+    std::cout << "\n";
 
     Parser parser = Parser(tokens);
     ProgramRoot* treeRoot = parser.parse();
@@ -42,12 +42,11 @@ int main(int argc, char* argv[]) {
     }
     codeGenerator programGenerator = codeGenerator();
     programGenerator.entryFunctionName = "main";
-    /*
     bool success = programGenerator.generateObjectFile(treeRoot,filename);
     if (!success) {
         std::cout << "Error while making object file " << filename;
+        exit(1);
     }
-    */
     
     std::cout << "Object file " << filename << " successfully created\n";
     exit(0);
