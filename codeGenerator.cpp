@@ -69,6 +69,9 @@ static const unsigned char OBJECT_SYMBOL_TYPE = 1; // Data object
 static const unsigned char FUNCTION_SYMBOL_TYPE = 2; // Function
 static const unsigned char SECTION_SYMBOL_TYPE= 3; // Section symbol
 
+// relo types
+static const unsigned char R_X86_64_PC32 = 2;
+static const unsigned char R_X86_64_PLT32 = 4;
 
 
 class codeGenerator {
@@ -85,6 +88,27 @@ public:
                 textData.insert(textData.end(),functionCode.begin(),functionCode.end());
             }
         }
+        // take care of non-local functions
+        {
+            std::unordered_map<std::string,bool> finished;
+            for (size_t i = 0; i < relaTextEntries.size(); ++i ) {
+                std::string& funcName = relaFuncStrings[i];
+                if (localFunctions.find(funcName) == localFunctions.end() && // not local function
+                    finished.find(funcName) == finished.end()) { // haven't finished it yet
+
+                    finished[funcName] = true;
+                    Symbol symbol{};
+
+                    //symbol.st_name  = index in .strtab, taken care of later
+                    symbol.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(FUNCTION_SYMBOL_TYPE);
+                    symbol.st_shndx = 0; // relocated
+                    symbol.st_value = 0; // relocated
+                    functionSymbols.push_back(symbol);
+                    functionSymbolNames.push_back(funcName);
+                }
+            }
+        }
+
 
         // .data section ------------------------------------------------------------
         std::vector<uint8_t> dataData = {
@@ -116,6 +140,8 @@ public:
             strtabContents += functionSymbolNames[i];
             strtabContents.push_back('\0');
         }
+
+
         // shstrtab section ------------------------------------------------------------
         // section header string table
         std::string shstrtabContents;
@@ -212,10 +238,17 @@ public:
         }
 
         for (size_t i = 0; i < relaTextEntries.size(); ++i ) {
-            uint32_t symIndex = nameToSymbolOffset[relaFuncStrings[i]];
 
-            relaTextEntries[i].r_info = ELF64_R_INFO(symIndex,2);
-            // symbol index and R_X86_64_PC32
+            if (localFunctions.find(relaFuncStrings[i]) != localFunctions.end()) { // local function
+                uint32_t symIndex = nameToSymbolOffset[relaFuncStrings[i]];
+                relaTextEntries[i].r_info = ELF64_R_INFO(symIndex,R_X86_64_PC32);
+                // symbol index and R_X86_64_PC32 (2)
+            }
+            else { // library function
+                uint32_t symIndex = nameToSymbolOffset[relaFuncStrings[i]];
+                relaTextEntries[i].r_info = ELF64_R_INFO(symIndex,R_X86_64_PLT32);
+                // no symbol index, PLT linking symbol
+            }
         }
 
         /*
@@ -443,6 +476,9 @@ private:
 
     std::vector<Symbol> functionSymbols;
     std::vector<std::string> functionSymbolNames;
+    std::unordered_map<std::string,bool> localFunctions;
+    // functions that are in this file, and not linked
+
 
     std::unordered_map<std::string,size_t> nameToSymbolOffset;
     size_t currentCodeOffset = 0;
@@ -532,6 +568,7 @@ private:
         symbol.st_size  = code.size();  // function size
         functionSymbols.push_back(symbol);
         functionSymbolNames.push_back(function->name);
+        localFunctions[function->name] = true;
 
         currentCodeOffset += code.size();
         return code;
