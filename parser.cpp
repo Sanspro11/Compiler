@@ -55,19 +55,23 @@ private:
         }
         else if (current().type == tokenType::NAME) {
             
-            std::string funcName = current().value;
-            advance();
-            // parameters here
-            advance();
-            advance();
-            // parameters here
             FunctionCall* funcCall = new FunctionCall();
+            std::string funcName = current().value;
             funcCall->name = funcName;
+            advance();
+            // parameters here
+            advance(); // (
+            while (current().type != tokenType::PARENTHESES && current().value != ")") {
+                ASTNode* expression = parseExpression();
+                funcCall->parameters.push_back(expression);
+            }
+            advance(); // )
+
             advance(); // ;
             return funcCall;
         }
 
-        return nullptr;  // Handle other statements if needed
+        return nullptr;  
     }
 
     ASTNode* parseFunction() {
@@ -96,23 +100,43 @@ private:
         }
         return codeBlock;
     }
+
     ASTNode* parseExpression() {
-        if (current().type == tokenType::CONSTANT) {
-            long long value = std::stoi(current().value);
-            advance();
-            while (current().type == tokenType::OPERATION) {
-                std::string operation = current().value;
-                advance();
-                long long  otherValue = std::stoi(current().value);
-                value = calculateOperation(value,otherValue,operation);
-                advance();
+        ASTNode* expression = nullptr;
+        while (current().type != tokenType::SEMICOLON && current().type != tokenType::COMMA) {
+            if (current().type == tokenType::CONSTANT) { 
+                if (expression == nullptr) {
+                    expression = new Constant(current().value);
+                }
+                else if (expression->type == NodeType::BinaryExpression) {
+                    BinaryExpression* binExpr = (BinaryExpression*)expression;
+                    if (binExpr->left->type == NodeType::Constant) {
+                        Constant* otherNode = (Constant*)binExpr->left;
+                        long long otherValue = std::stoi(otherNode->value);
+                        const std::string& op = binExpr->op;
+                        long long value = std::stoi(current().value); // assuming only constant numbers
+                        value = calculateOperation(value,otherValue,op);
+                        expression = new Constant(std::to_string(value));
+                    }
+                    else {
+                        binExpr->right = new Constant(current().value);
+                    }
+                }
             }
-            return new Constant(std::to_string(value));
+
+            else if (current().type == tokenType::OPERATION) {
+                BinaryExpression* binExpr = new BinaryExpression();
+                binExpr->left = expression;
+                binExpr->op = current().value;
+                expression = binExpr;
+
+            }
+            advance();
         }
-        return nullptr;  // Handle other expressions as needed
+        return expression;
     }
 
-    long long calculateOperation(long long& value1, long long& value2, std::string& operation) {
+    long long calculateOperation(const long long& value1,const  long long& value2,const std::string& operation) {
         if (operation == "+") 
             return value1 + value2;
         

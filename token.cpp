@@ -11,6 +11,7 @@ enum tokenType {
     PARENTHESES,
     TYPE,
     NAME,
+    COMMA,
     ENDOFFILE
 };
 

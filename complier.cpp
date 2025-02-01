@@ -40,6 +40,7 @@ int main(int argc, char* argv[]) {
     else {
         filename += ".o";
     }
+    /*
     codeGenerator programGenerator = codeGenerator();
     programGenerator.entryFunctionName = "main";
     bool success = programGenerator.generateObjectFile(treeRoot,filename);
@@ -47,6 +48,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Error while making object file " << filename;
         exit(1);
     }
+    */
     
     std::cout << "Object file " << filename << " successfully created\n";
     exit(0);

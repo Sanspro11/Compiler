@@ -515,8 +515,6 @@ private:
                     // only supports constant returns
                     if (returnStatement->expression->type == NodeType::Expression) {
                         // implement expression
-                        Expression* returnExpression = (Expression*)returnStatement->expression;
-                        constantValue = (Constant*)returnExpression->value;
                     }
                     else if (returnStatement->expression->type == NodeType::Constant) {
                         constantValue = (Constant*)returnStatement->expression;
