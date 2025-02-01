@@ -8,12 +8,11 @@
 #include "codeGenerator.cpp"
 
 int main(int argc, char* argv[]) {
-    if (argc != 2 && false) {
+    if (argc != 2) {
         std::cerr << "Usage: complier <filename>";
         exit(1);
     }
-    //std::string filename = argv[1];
-    std::string filename = "testFile";
+    std::string filename = argv[1];
     std::ifstream fileStream = std::ifstream(filename);
     if (!fileStream.is_open()) {
         std::cerr << "Error opening file: " << filename;
@@ -42,7 +41,6 @@ int main(int argc, char* argv[]) {
         filename += ".o";
     }
 
-    /*
     codeGenerator programGenerator = codeGenerator();
     programGenerator.entryFunctionName = "main";
     bool success = programGenerator.generateObjectFile(treeRoot,filename);
@@ -50,7 +48,6 @@ int main(int argc, char* argv[]) {
         std::cout << "Error while making object file " << filename;
         exit(1);
     }
-    */
     
     std::cout << "Object file " << filename << " successfully created\n";
     exit(0);

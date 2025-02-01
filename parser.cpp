@@ -63,7 +63,7 @@ private:
             advance(); // (
             while (current().type != tokenType::PARENTHESES && current().value != ")") {
                 ASTNode* expression = parseExpression();
-                funcCall->parameters.push_back(expression);
+                funcCall->arguments.push_back(expression);
                 if (current().type == tokenType::COMMA) {
                     advance(); // ,
                 }

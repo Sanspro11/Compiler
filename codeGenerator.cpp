@@ -251,18 +251,6 @@ public:
             }
         }
 
-        /*
-        // 4) main (global function)
-        {
-            Symbol s{};
-            s.st_name  = offsetMain; // index in .strtab
-            s.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(FUNCTION_SYMBOL_TYPE);
-            s.st_shndx = 1;                // in .text
-            s.st_value = 0;                // offset from start of .text
-            s.st_size  = textData.size();  // function size
-            symtab[4] = s;
-        }
-        */
 
 
         const uint8_t* symtabRaw = reinterpret_cast<const uint8_t*>(symtab.data());
@@ -482,8 +470,14 @@ private:
 
     std::unordered_map<std::string,size_t> nameToSymbolOffset;
     size_t currentCodeOffset = 0;
+    
+    static std::unordered_map<uint8_t,std::string> positionToRegister;
+    static std::unordered_map<std::string,std::vector<uint8_t>> register64BitMov;
 
 
+    void addCode(std::vector<uint8_t>& code,const std::vector<uint8_t>& codeToAdd) {
+        code.insert(code.end(),codeToAdd.begin(),codeToAdd.end());
+    }
     std::vector<uint8_t> exitSyscall(uint8_t num) {
         std::vector<uint8_t> code = {
             0x48, 0xc7, 0xc0, 0x3c, 0x00, 0x00, 0x00, // mov rax, 0x3c (exit syscall)
@@ -495,10 +489,19 @@ private:
 
     std::vector<uint8_t> call() {
         std::vector<uint8_t> code = {
-            0xe8, 0x00, 0x00, 0x00, 0x00  
+            0xe8, 0x00, 0x00, 0x00, 0x00  // call 0x00000000
         };
         return code;
         // the address of the call is being relocated by .rela.text
+    }
+    std::vector<uint8_t> movabs(const std::string& reg, uint64_t num) {
+
+        auto movCode = register64BitMov[reg];
+        uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&num);
+        for (size_t i = 0; i < 8; ++i) {
+            movCode.push_back(*(bytePtr + i));
+        }
+        return movCode;
     }
     std::vector<uint8_t> generateCodeFromFunction(Function* function) {
         std::vector<uint8_t> code;
@@ -513,7 +516,7 @@ private:
                 if (inMain) { // supposes int return
                     Constant* constantValue;
                     // only supports constant returns
-                    if (returnStatement->expression->type == NodeType::Expression) {
+                    if (returnStatement->expression->type == NodeType::BinaryExpression) {
                         // implement expression
                     }
                     else if (returnStatement->expression->type == NodeType::Constant) {
@@ -531,6 +534,21 @@ private:
 
             else if (statement->type == NodeType::FunctionCall) {
                 FunctionCall* functionCall = (FunctionCall*)statement;
+
+                //arguments
+                std::vector<ASTNode*>& args = functionCall->arguments;
+                for (size_t i = 0; i < args.size() && i <= 5; ++i) {
+                    uint64_t value;
+                    if (args[i]->type == NodeType::Constant) {
+                        Constant* constant = (Constant*)args[i];
+                        value = std::stoi(constant->value);
+                    }
+                    std::string reg = positionToRegister[i];
+                    auto movCode = movabs(reg,value);
+                    addCode(code,movCode);
+                }
+
+                //call
                 auto callCode = call();
                 size_t callOffset = code.size() + currentCodeOffset;
                 code.insert(code.end(),callCode.begin(),callCode.end());
@@ -542,6 +560,8 @@ private:
                 // add reloc.info later (.symtab index + relocation type)
                 relaTextEntries.push_back(reloc);
                 relaFuncStrings.push_back(functionCall->name);
+
+
             }
 
             // implement other statements
@@ -571,4 +591,20 @@ private:
         currentCodeOffset += code.size();
         return code;
     }
+};
+std::unordered_map<uint8_t,std::string> codeGenerator::positionToRegister = {
+    {0,"rdi"},
+    {1,"rsi"},
+    {2,"rdx"},
+    {3,"rcx"},
+    {4,"r9"},
+    {5,"r8"}
+};
+std::unordered_map<std::string,std::vector<uint8_t>> codeGenerator::register64BitMov {
+    {"rdi",{0x48,0xbf}},
+    {"rsi",{0x48,0xbe}},
+    {"rdx",{0x48,0xba}},
+    {"rcx",{0x48,0xb9}},
+    {"r9",{0x49,0xb9}},
+    {"r8",{0x49,0xb8}}
 };

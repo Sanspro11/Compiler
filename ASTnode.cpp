@@ -39,6 +39,7 @@ struct ReturnStatement : public ASTNode {
 
 struct Constant : public ASTNode {
     std::string value;  
+    std::string constantType;
     Constant(std::string v) : value(v) { type = NodeType::Constant; }
     void print() const override {
         std::cout << value;
@@ -112,17 +113,18 @@ struct Function : public ASTNode {
 
 struct FunctionCall : public ASTNode {
     std::string name;
-    std::vector<ASTNode*> parameters;
+    std::vector<ASTNode*> arguments;
     FunctionCall() { type = NodeType::FunctionCall; }
     void print() const override {
         std::cout << "FunctionCall: " << name;
-        if (parameters.size() == 0) {
-            std::cout << " with no parameters";
+        if (arguments.size() == 0) {
+            std::cout << " with no arguments";
         }
         else {
-            std::cout << " with parameters: ";
-            for (const ASTNode* parameter : parameters) {
+            std::cout << " with arguments: ";
+            for (const ASTNode* parameter : arguments) {
                 parameter->print();
+                std::cout << ", ";
             }
             std::cout << "\n";
         }
