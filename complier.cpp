@@ -1,8 +1,8 @@
 #include <vector>
 #include <fstream>
 #include <string>
-#include "token.hpp"
-#include "ASTnode.hpp"
+#include "token.cpp"
+#include "ASTnode.cpp"
 #include "parser.cpp"
 #include "lexer.cpp"
 #include "codeGenerator.cpp"

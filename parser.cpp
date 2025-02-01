@@ -1,7 +1,7 @@
 #pragma once
 #include <vector>
-#include "token.hpp"
-#include "ASTnode.hpp"
+#include "token.cpp"
+#include "ASTnode.cpp"
 
 class Parser {
 public:

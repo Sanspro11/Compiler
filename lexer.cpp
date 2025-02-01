@@ -2,7 +2,7 @@
 #include <vector>
 #include <fstream>
 #include <iostream>
-#include "token.hpp"
+#include "token.cpp"
 #include <unordered_map>
 class lexer {
 public:

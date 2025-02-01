@@ -4,7 +4,7 @@
 #include <fstream>
 #include <vector>
 #include <string>
-#include "ASTnode.hpp"
+#include "ASTnode.cpp"
 
 #pragma pack(push, 1) // no padding between struct properties
 
