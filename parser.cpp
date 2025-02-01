@@ -64,6 +64,9 @@ private:
             while (current().type != tokenType::PARENTHESES && current().value != ")") {
                 ASTNode* expression = parseExpression();
                 funcCall->parameters.push_back(expression);
+                if (current().type == tokenType::COMMA) {
+                    advance(); // ,
+                }
             }
             advance(); // )
 
@@ -91,19 +94,20 @@ private:
     CodeBlock* parseCodeBlock() {
         CodeBlock* codeBlock = new CodeBlock();
         if (current().type == tokenType::BRACE && current().value == "{") {
-            advance(); // advance {
+            advance(); // {
             while (current().type != tokenType::BRACE && current().value != "}") {
                 ASTNode* statement = parseStatement();
                 codeBlock->statements.push_back(statement);
             }
-            advance(); // advance }
+            advance(); // }
         }
         return codeBlock;
     }
 
     ASTNode* parseExpression() {
         ASTNode* expression = nullptr;
-        while (current().type != tokenType::SEMICOLON && current().type != tokenType::COMMA) {
+        while (current().type != tokenType::SEMICOLON && current().type != tokenType::COMMA 
+        && !(current().type == tokenType::PARENTHESES && current().value == ")") ) {
             if (current().type == tokenType::CONSTANT) { 
                 if (expression == nullptr) {
                     expression = new Constant(current().value);

@@ -59,8 +59,6 @@ private:
     static Token createToken(const std::string& str) {
         if (str == "return") {
             return Token(tokenType::RETURN, str);
-        } else if (std::isdigit(str[0])) {
-            return Token(tokenType::CONSTANT, str);
         } else if (str == ";") {
             return Token(tokenType::SEMICOLON, str);
         } else if (str == "+" || str == "-" || str == "*" || str == "/") {
@@ -69,8 +67,12 @@ private:
             return Token(tokenType::BRACE, str);
         } else if (str == "(" || str == ")") {
             return Token(tokenType::PARENTHESES, str);
+        } else if (str == ",") {
+            return Token(tokenType::COMMA, str);
         } else if (isType(str)) {
             return Token(tokenType::TYPE, str);
+        } else if (std::isdigit(str[0])) {
+            return Token(tokenType::CONSTANT, str);
         } 
         return Token(tokenType::NAME, str);
     }
