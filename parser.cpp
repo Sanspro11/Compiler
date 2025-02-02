@@ -117,9 +117,9 @@ private:
                     if (binExpr->left->type == NodeType::Constant &&
                      ((Constant*)binExpr->left)->constantType == "uint64_t") {
                         Constant* otherNode = (Constant*)binExpr->left;
-                        long long otherValue = std::stoi(otherNode->value);
+                        long long otherValue = std::stoll(otherNode->value);
                         const std::string& op = binExpr->op;
-                        long long value = std::stoi(current().value); // assuming only constant numbers
+                        long long value = std::stoll(current().value); // assuming only constant numbers
                         value = calculateOperation(value,otherValue,op);
                         expression = new Constant(std::to_string(value));
                     }

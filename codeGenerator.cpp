@@ -132,16 +132,22 @@ public:
         strtabContents += "myGlobalBss";
         strtabContents.push_back('\0');
 
-
+        // add a name for each function symbol
         for (size_t i = 0; i < functionSymbolNames.size(); ++i) {
             size_t offset = strtabContents.size();
             functionSymbols[i].st_name = offset; // put str offset in symbol
             strtabContents += functionSymbolNames[i];
             strtabContents.push_back('\0');
         }
-        size_t offsetString = strtabContents.size();
-        strtabContents += "myString";
-        strtabContents.push_back('\x0');
+
+        // add a name for each string symbol
+        for (size_t i = 0; i < stringSymbols.size(); ++i) {
+            size_t offset = strtabContents.size();
+            std::string stringName = "string" + std::to_string(i);
+            stringSymbols[i].st_name = offset; // put str offset in symbol
+            strtabContents += stringName;
+            strtabContents.push_back('\0');
+        }
 
 
         // shstrtab section ------------------------------------------------------------
@@ -212,6 +218,17 @@ public:
             s.st_shndx = 3;  // index of .bss
             symtab[3] = s;
         }
+
+        size_t symTabOffset = 4;
+
+        // add all function string symbols
+        for (size_t i = 0; i < stringSymbols.size(); ++i) {
+            symtab[symTabOffset] = stringSymbols[i];
+            stringNumToSymbolOffset.push_back(symTabOffset);
+            ++symTabOffset;
+        }
+        // end of local symbols
+        size_t endOfLocalSymbols = symTabOffset;
         // 4) myGlobalData (global object in .data)
         {
             Symbol s{};
@@ -220,8 +237,9 @@ public:
             s.st_shndx = 2;                 // .data
             s.st_value = 0;                 // offset in .data
             s.st_size  = dataData.size();   // 4 bytes
-            symtab[4] = s;
+            symtab[symTabOffset] = s;
         }
+        ++symTabOffset;
 
         // 5) myGlobalBss (global object in .bss)
         {
@@ -231,20 +249,14 @@ public:
             s.st_shndx = 3;      // .bss
             s.st_value = 0;      // offset in .bss
             s.st_size  = 4;      // 4 bytes reserved
-            symtab[5] = s;
+            symtab[symTabOffset] = s;
         }
-        size_t symTabOffset = 6;
+        ++symTabOffset;
         // add all function symbols
         for (size_t i = 0; i < functionSymbols.size(); ++i) {
             symtab[symTabOffset] = functionSymbols[i];
             std::string funcName = functionSymbolNames[i];
             nameToSymbolOffset[funcName] = symTabOffset;
-            ++symTabOffset;
-        }
-        for (size_t i = 0; i < stringSymbols.size(); ++i) {
-            stringSymbols[i].st_name = offsetString;
-            symtab[symTabOffset] = stringSymbols[i];
-            stringNumToSymbolOffset.push_back(symTabOffset);
             ++symTabOffset;
         }
 
@@ -345,7 +357,7 @@ public:
             sh.sh_name      = offSymtab;
             sh.sh_type      = 2; // symtab 
             sh.sh_link      = 5;
-            sh.sh_info      = 4;
+            sh.sh_info      = endOfLocalSymbols; // where global symbols starts 
             sh.sh_size      = symtabSizeInBytes;
             sh.sh_addralign = 8; // 8-byte alignment for Symbol
             sh.sh_entsize   = sizeof(Symbol);
@@ -363,7 +375,7 @@ public:
         // 6: .rela.text 
         {
             SectionHeader &sh = shdr[6];
-            sh.sh_name      = offRelaText;  // ".rela.text"
+            sh.sh_name      = offRelaText;  
             sh.sh_type      = 4;           // SHT_RELA
             sh.sh_link      = 4; // index of .symtab
             sh.sh_info      = 1; // index of section to apply relocations (.text) (1)
@@ -582,7 +594,7 @@ private:
                         constantValue = (Constant*)returnStatement->expression;
                     }
                     std::string stringValue = constantValue->value;
-                    uint8_t value = std::stoi(stringValue);
+                    uint8_t value = std::stoll(stringValue);
                     auto codeForExit = exitSyscall(value);
                     addCode(code,codeForExit);
                 }
@@ -601,7 +613,7 @@ private:
                     if (args[i]->type == NodeType::Constant) {
                         Constant* constant = (Constant*)args[i];
                         if (constant->constantType == "uint64_t") {
-                            uint64_t value = std::stoi(constant->value);
+                            uint64_t value = std::stoll(constant->value);
                             std::string reg = positionToRegister[i];
                             auto movCode = movabs(reg,value);
                             addCode(code,movCode);
@@ -614,8 +626,8 @@ private:
                             
                             // symbol for the string
                             Symbol sym{};
-                            sym.st_name  = 0; // technically doesn't matter
-                            sym.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(OBJECT_SYMBOL_TYPE);
+                            sym.st_name  = 0; // handled later
+                            sym.st_info  = ELF64_ST_BIND(LOCAL_SYMBOL) | ELF64_ST_TYPE(OBJECT_SYMBOL_TYPE);
                             sym.st_shndx = 8; // .rodata section index
                             sym.st_value = currentStringsOffset; 
                             sym.st_size  = value.size();
