@@ -13,6 +13,7 @@ enum tokenType {
     NAME,
     COMMA,
     STRING,
+    ASSIGNMENT,
     ENDOFFILE
 };
 

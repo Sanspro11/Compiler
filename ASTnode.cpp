@@ -14,6 +14,9 @@ enum class NodeType {
     ProgramRoot,
     Operation,
     FunctionCall,
+    VariableDeclaration,
+    Identifier,
+    Assignment
 };
 
 struct ASTNode {
@@ -130,3 +133,54 @@ struct FunctionCall : public ASTNode {
         }
     }
 };
+
+struct Identifier : public ASTNode {
+    std::string name;
+    Identifier(const std::string& name) : name(name) { 
+        type = NodeType::Identifier; 
+    }
+    void print() const override {
+        std::cout << name;
+    }
+};
+
+struct Assignment : public ASTNode {
+    Identifier* identifier;
+    ASTNode* expression; 
+
+    Assignment(Identifier* target, ASTNode* expression)
+        : identifier(target), expression(expression)
+    {
+        type = NodeType::Assignment;
+    }
+
+    void print() const override {
+        std::cout << "Assignment: ";
+        if (identifier) {
+            identifier->print();
+        }
+        std::cout << " = ";
+        if (expression) {
+            expression->print();
+        }
+    }
+};
+
+struct VariableDeclaration : public ASTNode {
+    std::string varType;
+    std::string varName;
+    ASTNode* initializer;  
+
+    VariableDeclaration(const std::string& varType, const std::string& varName, ASTNode* initializer = nullptr)
+    : varType(varType), varName(varName), initializer(initializer)
+    {type = NodeType::VariableDeclaration;}
+
+    void print() const override {
+        std::cout << "VariableDeclaration: " << varType << " " << varName;
+        if (initializer != nullptr) {
+            std::cout << " = ";
+            initializer->print();
+        }
+    }
+};
+

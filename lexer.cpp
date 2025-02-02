@@ -98,6 +98,8 @@ private:
             return Token(tokenType::COMMA, str);
         } else if (isType(str)) {
             return Token(tokenType::TYPE, str);
+        } else if (str == "=") {
+            return Token(tokenType::ASSIGNMENT, str);
         } else if (std::isdigit(str[0])) { 
             return Token(tokenType::CONSTANT, str);
         } 
@@ -124,7 +126,9 @@ std::unordered_map<std::string,bool> lexer::keywords = {
 
 std::unordered_map<std::string,bool> lexer::types = {
     {"int",true},
-    {"void",true}
+    {"void",true},
+    {"uint64_t",true},
+    {"char",true}
 };
 
 std::unordered_map<char,bool> lexer::symbols = {
@@ -138,4 +142,5 @@ std::unordered_map<char,bool> lexer::symbols = {
     {'}',true},
     {',',true},
     {';',true},
+    {'=',true},
 };

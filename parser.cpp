@@ -53,6 +53,9 @@ private:
 
             return returnStmt;
         }
+        else if (current().type == tokenType::TYPE) { // declaration
+
+        }
         else if (current().type == tokenType::NAME) {
             
             FunctionCall* funcCall = new FunctionCall();

@@ -532,9 +532,9 @@ private:
 
     std::vector<uint8_t> exitSyscall(uint8_t num) {
         std::vector<uint8_t> code = {
-            0x48, 0xc7, 0xc0, 0x3c, 0x00, 0x00, 0x00, // mov rax, 0x3c (exit syscall)
-            0x48, 0xc7, 0xc7, num, 0x00, 0x00, 0x00, // mov rdi, num (0-255)
-            0x0f, 0x05 // syscall
+            0x48, 0xC7, 0xC0, 0x3C, 0x00, 0x00, 0x00, // MOV RAx, 0x3C (ExIT SYSCALL)
+            0x48, 0xC7, 0xC7, num, 0x00, 0x00, 0x00, // MOV RDI, NUM (0-255)
+            0x0F, 0x05 // SYSCALL
         };
         return code;
     }
@@ -545,7 +545,7 @@ private:
         };
         return code;
         // the address of the call is being relocated by .rela.text
-    }
+    } // call 0x00000000
 
     std::vector<uint8_t> movabs(const std::string& reg, uint64_t num) {
         auto movCode = register64BitMov[reg];
@@ -554,7 +554,7 @@ private:
             movCode.push_back(*(bytePtr + i));
         }
         return movCode;
-    }
+    } // movabs reg, num
 
     std::vector<uint8_t> leaStub(const std::string& reg) { 
         auto leaCode = register64BitLeaStub[reg];
@@ -562,11 +562,128 @@ private:
         return leaCode;
         // stub lea for relocation
     }
+
     std::vector<uint8_t> pushRbp() { 
         return {0x55};
+    } // push rbp
+
+    std::vector<uint8_t> ret() { 
+        return {0xC3};
+    } // ret
+
+    std::vector<uint8_t> movRspRbp() { 
+        return {0x48,0x89,0xE5};
+    } // mov rbp, rsp
+
+    std::vector<uint8_t> movRaxQwordRbpOffset(uint32_t offset) { 
+        std::vector<uint8_t> code = {0x48,0x8b,0x85};
+        offset = ~offset;
+        uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&offset);
+        for (size_t i = 0; i < 4; ++i) {
+            code.push_back(*(bytePtr + i));
+        }
+        return code;
+    } // mov rax, [rbp-0xOFFSET]
+
+    std::vector<uint8_t> movRbpQwordOffsetRax(uint32_t offset) { 
+        std::vector<uint8_t> code = {0x48,0x89,0x85};
+        offset = ~offset;
+        uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&offset);
+        for (size_t i = 0; i < 4; ++i) {
+            code.push_back(*(bytePtr + i));
+        }
+        return code;
+    } // mov [rbp-0xOFFSET], rax
+
+    std::vector<uint8_t> subRsp(uint32_t num) { 
+        std::vector<uint8_t> code = {0x48,0x81,0xEC};
+        uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&num);
+        for (size_t i = 0; i < 4; ++i) {
+            code.push_back(*(bytePtr + i));
+        }
+        return code;
+    } // sub Rsp, num
+
+
+    
+    void addConstantStringToRegToCode(std::vector<uint8_t>& code,const Constant* constant, const std::string& reg) { 
+        const std::string& value = constant->value;
+
+        rodataContents += value;
+        rodataContents.push_back('\x00');
+        
+        // symbol for the string
+        Symbol sym{};
+        sym.st_name  = 0; // handled later
+        sym.st_info  = ELF64_ST_BIND(LOCAL_SYMBOL) | ELF64_ST_TYPE(OBJECT_SYMBOL_TYPE);
+        sym.st_shndx = 8; // .rodata section index
+        sym.st_value = currentStringsOffset; 
+        sym.st_size  = value.size();
+        currentStringsOffset += value.size() + 1; // include null terminator
+        stringSymbols.push_back(sym);
+        
+        auto movabsCodeStub = movabs(reg,0);
+        size_t stringAddressOffset = code.size() + currentCodeOffset + register64BitMov[reg].size();
+        
+        // add relocation entry
+        Elf64_Rela rel{};
+        rel.r_offset = stringAddressOffset;  
+        rel.r_addend = 0;
+        // rel.r_info is added later
+        stringRelaEntries.push_back(rel);
+        addCode(code,movabsCodeStub);
+    } 
+
+    void addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement*& returnStatement, bool inMain) {
+        if (inMain) { // supposes int return
+            Constant* constantValue;
+            // only supports constant returns
+            if (returnStatement->expression->type == NodeType::BinaryExpression) {
+                // implement expression
+            }
+            else if (returnStatement->expression->type == NodeType::Constant && 
+            ((Constant*)returnStatement->expression)->constantType == "uint64_t") {
+                constantValue = (Constant*)returnStatement->expression;
+            }
+            std::string stringValue = constantValue->value;
+            uint8_t value = std::stoll(stringValue);
+            auto exitCode = exitSyscall(value);
+            addCode(code,exitCode);
+        }
+        else {
+            addCode(code,ret());
+        }
     }
-    std::vector<uint8_t> movRbpRsp() { 
-        return {0x48,0x89,0xed};
+
+    void addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall*& functionCall) {
+        std::vector<ASTNode*>& args = functionCall->arguments;
+
+        for (size_t i = 0; i < args.size() && i <= 5; ++i) {
+            if (args[i]->type == NodeType::Constant) {
+                Constant* constant = (Constant*)args[i];
+                if (constant->constantType == "uint64_t") {
+                    uint64_t value = std::stoll(constant->value);
+                    std::string reg = positionToRegister[i];
+                    auto movCode = movabs(reg,value);
+                    addCode(code,movCode);
+                }
+                else if (constant->constantType == "string") {
+                    std::string reg = positionToRegister[i]; 
+                    addConstantStringToRegToCode(code,constant,reg);
+                }
+            }
+        }
+
+        //call
+        // add .rela.text entry
+        Elf64_Rela rel{};
+        rel.r_offset = currentCodeOffset + code.size() + 1;
+        rel.r_addend = -4; // constant
+        // add reloc.info later (.symtab index + relocation type)
+        relaTextEntries.push_back(rel);
+        relaFuncStrings.push_back(functionCall->name);
+        auto callCode = call();
+        addCode(code,callCode);
     }
 
 
@@ -575,99 +692,18 @@ private:
         bool inMain = function->name == entryFunctionName;
 
         auto stackStartCode = pushRbp();
-        addCode(stackStartCode,movRbpRsp());
+        addCode(stackStartCode,movRspRbp());
         addCode(code,stackStartCode);
         for (const ASTNode* statement : function->codeBlock->statements) {
             if (statement->type == NodeType::ReturnStatement) {
-                // check return type here
-
                 ReturnStatement* returnStatement = (ReturnStatement*)statement;
-                // only supports static returns for now
-                if (inMain) { // supposes int return
-                    Constant* constantValue;
-                    // only supports constant returns
-                    if (returnStatement->expression->type == NodeType::BinaryExpression) {
-                        // implement expression
-                    }
-                    else if (returnStatement->expression->type == NodeType::Constant && 
-                    ((Constant*)returnStatement->expression)->constantType == "uint64_t") {
-                        constantValue = (Constant*)returnStatement->expression;
-                    }
-                    std::string stringValue = constantValue->value;
-                    uint8_t value = std::stoll(stringValue);
-                    auto codeForExit = exitSyscall(value);
-                    addCode(code,codeForExit);
-                }
-                else {
-                    code.push_back(0xC3); // void ret
-                }
+                addReturnStatementToCode(code,returnStatement,inMain);
             }
 
             else if (statement->type == NodeType::FunctionCall) {
                 FunctionCall* functionCall = (FunctionCall*)statement;
-
-                //arguments
-                std::vector<ASTNode*>& args = functionCall->arguments;
-
-                for (size_t i = 0; i < args.size() && i <= 5; ++i) {
-                    if (args[i]->type == NodeType::Constant) {
-                        Constant* constant = (Constant*)args[i];
-                        if (constant->constantType == "uint64_t") {
-                            uint64_t value = std::stoll(constant->value);
-                            std::string reg = positionToRegister[i];
-                            auto movCode = movabs(reg,value);
-                            addCode(code,movCode);
-                        }
-                        else if (constant->constantType == "string") {
-                            const std::string& value = constant->value;
-
-                            rodataContents += value;
-                            rodataContents.push_back('\x00');
-                            
-                            // symbol for the string
-                            Symbol sym{};
-                            sym.st_name  = 0; // handled later
-                            sym.st_info  = ELF64_ST_BIND(LOCAL_SYMBOL) | ELF64_ST_TYPE(OBJECT_SYMBOL_TYPE);
-                            sym.st_shndx = 8; // .rodata section index
-                            sym.st_value = currentStringsOffset; 
-                            sym.st_size  = value.size();
-                            currentStringsOffset += value.size() + 1; // include null terminator
-                            stringSymbols.push_back(sym);
-                            
-                            std::string reg = positionToRegister[i]; 
-                            auto movabsCodeStub = movabs(reg,0);
-                            size_t instrOffset = code.size() + currentCodeOffset;
-                            size_t immOffset = instrOffset + register64BitMov[reg].size();
-                            
-                            addCode(code, movabsCodeStub);
-                            
-                            // add relocation entry
-                            Elf64_Rela rel{};
-                            rel.r_offset = immOffset;  
-                            rel.r_addend = 0;
-                            // rel.r_info is added later
-                            stringRelaEntries.push_back(rel);
-                        }
-                    }
-                }
-
-                //call
-                auto callCode = call();
-                size_t callOffset = code.size() + currentCodeOffset;
-                addCode(code,callCode);
-
-                // add .rela.text entry
-                Elf64_Rela rel{};
-                rel.r_offset = callOffset + 1;
-                rel.r_addend = -4; // constant
-                // add reloc.info later (.symtab index + relocation type)
-                relaTextEntries.push_back(rel);
-                relaFuncStrings.push_back(functionCall->name);
-
-
+                addFunctionCallToCode(code,functionCall);
             }
-
-            // implement other statements
         }
 
 
@@ -677,7 +713,7 @@ private:
             addCode(code,exitCode);
         }
         else {
-            code.push_back(0xC3); // ret
+            addCode(code,ret());
         }
         // add symbol entry
         Symbol symbol{};
