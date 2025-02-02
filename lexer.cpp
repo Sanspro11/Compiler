@@ -11,11 +11,35 @@ public:
         std::string currentToken;
         int line = 1;
         int column = 0;
-        bool inString = false;
         char ch;
+        bool backwardsSlash = false;
         try {
             while (fileStream.get(ch)) {
                 ++column;
+                if (inString && ch != '\"') {
+                    if (backwardsSlash) {
+                        backwardsSlash = false;
+                        if (ch == 'n') {
+                            currentToken[currentToken.size()-1] = '\n';
+                        }
+                        continue;
+                    }
+                    if (ch == '\\') {
+                        backwardsSlash = true;
+                    }
+                    currentToken += ch;
+                    continue;
+                }
+                if (ch == '\"') {
+                    if (!inString) {
+                        inString = true;
+                        continue;
+                    }
+                    tokens.push_back(createToken(currentToken));
+                    currentToken.clear();
+                    inString = false;
+                    continue;
+                }
                 if (ch == ' ') {
                     if (!currentToken.empty()) {
                         tokens.push_back(createToken(currentToken));
@@ -54,10 +78,13 @@ private:
     static std::unordered_map<std::string,bool> keywords;
     static std::unordered_map<char,bool> symbols;
     static std::unordered_map<std::string,bool> types;
+    static bool inString;
 
 
     static Token createToken(const std::string& str) {
-        if (str == "return") {
+        if (inString) { 
+            return Token(tokenType::STRING, str);
+        } else if (str == "return") {
             return Token(tokenType::RETURN, str);
         } else if (str == ";") {
             return Token(tokenType::SEMICOLON, str);
@@ -71,7 +98,7 @@ private:
             return Token(tokenType::COMMA, str);
         } else if (isType(str)) {
             return Token(tokenType::TYPE, str);
-        } else if (std::isdigit(str[0])) {
+        } else if (std::isdigit(str[0])) { 
             return Token(tokenType::CONSTANT, str);
         } 
         return Token(tokenType::NAME, str);
@@ -90,6 +117,7 @@ private:
     }
 };
 
+bool lexer::inString = false;
 std::unordered_map<std::string,bool> lexer::keywords = {
     {"return",true},
 };

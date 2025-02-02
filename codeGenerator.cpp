@@ -85,7 +85,7 @@ public:
         for (const ASTNode* element : root->programElements) {
             if (element->type == NodeType::Function) {
                 std::vector<uint8_t> functionCode = generateCodeFromFunction((Function*)element);
-                textData.insert(textData.end(),functionCode.begin(),functionCode.end());
+                addCode(textData,functionCode);
             }
         }
         // take care of non-local functions
@@ -94,7 +94,7 @@ public:
             for (size_t i = 0; i < relaTextEntries.size(); ++i ) {
                 std::string& funcName = relaFuncStrings[i];
                 if (localFunctions.find(funcName) == localFunctions.end() && // not local function
-                    finished.find(funcName) == finished.end()) { // haven't finished it yet
+                    finished.find(funcName) == finished.end()) {
 
                     finished[funcName] = true;
                     Symbol symbol{};
@@ -133,13 +133,15 @@ public:
         strtabContents.push_back('\0');
 
 
-        // TODO add other functions here
         for (size_t i = 0; i < functionSymbolNames.size(); ++i) {
             size_t offset = strtabContents.size();
             functionSymbols[i].st_name = offset; // put str offset in symbol
             strtabContents += functionSymbolNames[i];
             strtabContents.push_back('\0');
         }
+        size_t offsetString = strtabContents.size();
+        strtabContents += "myString";
+        strtabContents.push_back('\x0');
 
 
         // shstrtab section ------------------------------------------------------------
@@ -167,11 +169,14 @@ public:
         size_t offShstrtab = shstrtabContents.size();
         shstrtabContents += ".shstrtab";
         shstrtabContents.push_back('\0');
+        size_t offRoData = shstrtabContents.size();
+        shstrtabContents += ".rodata";
+        shstrtabContents.push_back('\0');
 
 
         // .symtab section ------------------------------------------------------------
         std::vector<Symbol> symtab;
-        symtab.resize(6 + functionSymbols.size()); // 6 static + functions
+        symtab.resize(6 + functionSymbols.size() + stringSymbols.size()); // 6 static + functions + strings
         // NULL .text .data .bss data bss functions...
 
         // Making all symbols
@@ -236,6 +241,12 @@ public:
             nameToSymbolOffset[funcName] = symTabOffset;
             ++symTabOffset;
         }
+        for (size_t i = 0; i < stringSymbols.size(); ++i) {
+            stringSymbols[i].st_name = offsetString;
+            symtab[symTabOffset] = stringSymbols[i];
+            stringNumToSymbolOffset.push_back(symTabOffset);
+            ++symTabOffset;
+        }
 
         for (size_t i = 0; i < relaTextEntries.size(); ++i ) {
 
@@ -250,6 +261,10 @@ public:
                 // no symbol index, PLT linking symbol
             }
         }
+        for (size_t i = 0; i < stringRelaEntries.size(); ++i) {
+            uint32_t symIndex = stringNumToSymbolOffset[i];
+            stringRelaEntries[i].r_info = ELF64_R_INFO(symIndex,1);
+        }
 
 
 
@@ -257,7 +272,7 @@ public:
         size_t symtabSizeInBytes = symtab.size() * sizeof(Symbol);
 
         // elf header ------------------------------------------------------------
-        const int numSections = 8;
+        const int numSections = 9;
         // null, .text, .data, .bss, .symtab, .strtab, .shstrtab, .rela.text 
 
         Elf64Header ehdr{};
@@ -320,7 +335,7 @@ public:
             sh.sh_type      = 8; // nobits (for bss)
             sh.sh_flags     = 0x2 | 0x1; // loaded and writable
             sh.sh_offset    = 0;        // filled later
-            sh.sh_size      = 4; // we said 4 bytes for myGlobalBss
+            sh.sh_size      = 4;  
             sh.sh_addralign = 1;
         }
 
@@ -350,11 +365,9 @@ public:
             SectionHeader &sh = shdr[6];
             sh.sh_name      = offRelaText;  // ".rela.text"
             sh.sh_type      = 4;           // SHT_RELA
-            sh.sh_flags     = 0;           
-            // sh_link = index of the .symtab (which is 4)
-            sh.sh_link      = 4;
-            // sh_info = index of section to which relocations apply => .text = 1
-            sh.sh_info      = 1;
+            sh.sh_link      = 4; // index of .symtab
+            sh.sh_info      = 1; // index of section to apply relocations (.text) (1)
+            sh.sh_size      = (relaTextEntries.size() + stringRelaEntries.size()) * sizeof(Elf64_Rela);
             sh.sh_addralign = 8;
             sh.sh_entsize   = sizeof(Elf64_Rela);
         }
@@ -367,6 +380,17 @@ public:
             sh.sh_size      = shstrtabContents.size();
             sh.sh_addralign = 1;
         }
+
+        // 8: .rodata
+        {
+            SectionHeader &sh = shdr[8];
+            sh.sh_name      = offRoData;
+            sh.sh_type      = 1; // SHT_PROGBITS (contains data)
+            sh.sh_flags     = 0x02; // A (loaded into memory)           
+            sh.sh_size      = rodataContents.size();
+            sh.sh_addralign = 1;
+        }
+        // remember to add +1 to numSections when adding new section, and change shdr[i]
 
 
         // Writing to file -------------------------------------------
@@ -402,13 +426,15 @@ public:
             offset += pad;
         }
         shdr[6].sh_offset = offset;
-        // the size is #entries * sizeof(Elf64_Rela)
-        shdr[6].sh_size   = relaTextEntries.size() * sizeof(Elf64_Rela);
         offset += shdr[6].sh_size;
 
         // .shstrtab
         shdr[7].sh_offset = offset;
         offset += shdr[7].sh_size;
+        
+        //.rodata
+        shdr[8].sh_offset = offset;
+        offset += shdr[8].sh_size;
 
         // 7) Write out the ELF file
         std::ofstream ofs(filename, std::ios::binary);
@@ -445,13 +471,18 @@ public:
                 std::vector<char> pad(neededPad, 0);
                 ofs.write(pad.data(), pad.size());
             }
-            // Now write the relocation entries
             for (auto &rel : relaTextEntries) {
+                ofs.write(reinterpret_cast<const char*>(&rel), sizeof(rel));
+            }
+            for (auto &rel : stringRelaEntries) {
                 ofs.write(reinterpret_cast<const char*>(&rel), sizeof(rel));
             }
         }
         // .shstrtab
         ofs.write(shstrtabContents.data(), shstrtabContents.size());
+
+        // .rodata
+        ofs.write(rodataContents.data(), rodataContents.size());
 
         ofs.close();
         return true;
@@ -460,24 +491,33 @@ public:
 private:
     // all relocations
     std::vector<Elf64_Rela> relaTextEntries;
+    std::vector<Elf64_Rela> stringRelaEntries;
     std::vector<std::string> relaFuncStrings;
 
     std::vector<Symbol> functionSymbols;
+    std::vector<Symbol> stringSymbols;
     std::vector<std::string> functionSymbolNames;
     std::unordered_map<std::string,bool> localFunctions;
     // functions that are in this file, and not linked
 
+    std::string rodataContents;
 
     std::unordered_map<std::string,size_t> nameToSymbolOffset;
+    std::vector<size_t> stringNumToSymbolOffset;
     size_t currentCodeOffset = 0;
+    size_t currentStringsOffset = 0;
     
     static std::unordered_map<uint8_t,std::string> positionToRegister;
     static std::unordered_map<std::string,std::vector<uint8_t>> register64BitMov;
+    static std::unordered_map<std::string,std::vector<uint8_t>> register64BitLeaStub;
+    
+    
 
 
     void addCode(std::vector<uint8_t>& code,const std::vector<uint8_t>& codeToAdd) {
         code.insert(code.end(),codeToAdd.begin(),codeToAdd.end());
     }
+
     std::vector<uint8_t> exitSyscall(uint8_t num) {
         std::vector<uint8_t> code = {
             0x48, 0xc7, 0xc0, 0x3c, 0x00, 0x00, 0x00, // mov rax, 0x3c (exit syscall)
@@ -494,8 +534,8 @@ private:
         return code;
         // the address of the call is being relocated by .rela.text
     }
-    std::vector<uint8_t> movabs(const std::string& reg, uint64_t num) {
 
+    std::vector<uint8_t> movabs(const std::string& reg, uint64_t num) {
         auto movCode = register64BitMov[reg];
         uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&num);
         for (size_t i = 0; i < 8; ++i) {
@@ -503,10 +543,28 @@ private:
         }
         return movCode;
     }
+
+    std::vector<uint8_t> leaStub(const std::string& reg) { 
+        auto leaCode = register64BitLeaStub[reg];
+        addCode(leaCode,{0x00,0x00,0x00,0x00});
+        return leaCode;
+        // stub lea for relocation
+    }
+    std::vector<uint8_t> pushRbp() { 
+        return {0x55};
+    }
+    std::vector<uint8_t> movRbpRsp() { 
+        return {0x48,0x89,0xed};
+    }
+
+
     std::vector<uint8_t> generateCodeFromFunction(Function* function) {
         std::vector<uint8_t> code;
         bool inMain = function->name == entryFunctionName;
 
+        auto stackStartCode = pushRbp();
+        addCode(stackStartCode,movRbpRsp());
+        addCode(code,stackStartCode);
         for (const ASTNode* statement : function->codeBlock->statements) {
             if (statement->type == NodeType::ReturnStatement) {
                 // check return type here
@@ -519,13 +577,14 @@ private:
                     if (returnStatement->expression->type == NodeType::BinaryExpression) {
                         // implement expression
                     }
-                    else if (returnStatement->expression->type == NodeType::Constant) {
+                    else if (returnStatement->expression->type == NodeType::Constant && 
+                    ((Constant*)returnStatement->expression)->constantType == "uint64_t") {
                         constantValue = (Constant*)returnStatement->expression;
                     }
                     std::string stringValue = constantValue->value;
                     uint8_t value = std::stoi(stringValue);
                     auto codeForExit = exitSyscall(value);
-                    code.insert(code.end(),codeForExit.begin(),codeForExit.end());
+                    addCode(code,codeForExit);
                 }
                 else {
                     code.push_back(0xC3); // void ret
@@ -537,28 +596,60 @@ private:
 
                 //arguments
                 std::vector<ASTNode*>& args = functionCall->arguments;
+
                 for (size_t i = 0; i < args.size() && i <= 5; ++i) {
-                    uint64_t value;
                     if (args[i]->type == NodeType::Constant) {
                         Constant* constant = (Constant*)args[i];
-                        value = std::stoi(constant->value);
+                        if (constant->constantType == "uint64_t") {
+                            uint64_t value = std::stoi(constant->value);
+                            std::string reg = positionToRegister[i];
+                            auto movCode = movabs(reg,value);
+                            addCode(code,movCode);
+                        }
+                        else if (constant->constantType == "string") {
+                            const std::string& value = constant->value;
+
+                            rodataContents += value;
+                            rodataContents.push_back('\x00');
+                            
+                            // symbol for the string
+                            Symbol sym{};
+                            sym.st_name  = 0; // technically doesn't matter
+                            sym.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(OBJECT_SYMBOL_TYPE);
+                            sym.st_shndx = 8; // .rodata section index
+                            sym.st_value = currentStringsOffset; 
+                            sym.st_size  = value.size();
+                            currentStringsOffset += value.size() + 1; // include null terminator
+                            stringSymbols.push_back(sym);
+                            
+                            std::string reg = positionToRegister[i]; 
+                            auto movabsCodeStub = movabs(reg,0);
+                            size_t instrOffset = code.size() + currentCodeOffset;
+                            size_t immOffset = instrOffset + register64BitMov[reg].size();
+                            
+                            addCode(code, movabsCodeStub);
+                            
+                            // add relocation entry
+                            Elf64_Rela rel{};
+                            rel.r_offset = immOffset;  
+                            rel.r_addend = 0;
+                            // rel.r_info is added later
+                            stringRelaEntries.push_back(rel);
+                        }
                     }
-                    std::string reg = positionToRegister[i];
-                    auto movCode = movabs(reg,value);
-                    addCode(code,movCode);
                 }
 
                 //call
                 auto callCode = call();
                 size_t callOffset = code.size() + currentCodeOffset;
-                code.insert(code.end(),callCode.begin(),callCode.end());
+                addCode(code,callCode);
 
                 // add .rela.text entry
-                Elf64_Rela reloc{};
-                reloc.r_offset = callOffset + 1;
-                reloc.r_addend = -4; // constant
+                Elf64_Rela rel{};
+                rel.r_offset = callOffset + 1;
+                rel.r_addend = -4; // constant
                 // add reloc.info later (.symtab index + relocation type)
-                relaTextEntries.push_back(reloc);
+                relaTextEntries.push_back(rel);
                 relaFuncStrings.push_back(functionCall->name);
 
 
@@ -571,7 +662,7 @@ private:
         // end of function
         if (inMain) {
             auto exitCode = exitSyscall(0);
-            code.insert(code.end(),exitCode.begin(),exitCode.end());
+            addCode(code,exitCode);
         }
         else {
             code.push_back(0xC3); // ret
@@ -601,10 +692,20 @@ std::unordered_map<uint8_t,std::string> codeGenerator::positionToRegister = {
     {5,"r8"}
 };
 std::unordered_map<std::string,std::vector<uint8_t>> codeGenerator::register64BitMov {
+    {"rax",{0x48,0xb8}},
     {"rdi",{0x48,0xbf}},
     {"rsi",{0x48,0xbe}},
     {"rdx",{0x48,0xba}},
     {"rcx",{0x48,0xb9}},
     {"r9",{0x49,0xb9}},
     {"r8",{0x49,0xb8}}
+};
+
+std::unordered_map<std::string,std::vector<uint8_t>> codeGenerator::register64BitLeaStub {
+    {"rdi",{0x48,0x8d,0x3c,0x25}},
+    {"rsi",{0x48,0x8d,0x34,0x25}},
+    {"rdx",{0x48,0x8d,0x14,0x25}},
+    {"rcx",{0x48,0x8d,0x0c,0x25}},
+    {"r9",{0x4c,0x8d,0x0c,0x25}},
+    {"r8",{0x4c,0x8d,0x04,0x25}}
 };

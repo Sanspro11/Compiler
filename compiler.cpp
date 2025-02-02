@@ -8,8 +8,8 @@
 #include "codeGenerator.cpp"
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: complier <filename>";
+    if (argc != 2 ) {
+        std::cerr << "Usage: compiler <filename>";
         exit(1);
     }
     std::string filename = argv[1];

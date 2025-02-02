@@ -114,7 +114,8 @@ private:
                 }
                 else if (expression->type == NodeType::BinaryExpression) {
                     BinaryExpression* binExpr = (BinaryExpression*)expression;
-                    if (binExpr->left->type == NodeType::Constant) {
+                    if (binExpr->left->type == NodeType::Constant &&
+                     ((Constant*)binExpr->left)->constantType == "uint64_t") {
                         Constant* otherNode = (Constant*)binExpr->left;
                         long long otherValue = std::stoi(otherNode->value);
                         const std::string& op = binExpr->op;
@@ -134,6 +135,19 @@ private:
                 binExpr->op = current().value;
                 expression = binExpr;
 
+            }
+
+            else if (current().type == tokenType::STRING) {
+                if (expression == nullptr) {
+                    expression = new Constant(current().value);
+                    ((Constant*)expression)->constantType = "string";
+                    
+                }
+                else if (expression->type == NodeType::BinaryExpression) {
+                    BinaryExpression* binExpr = (BinaryExpression*)expression;
+                    binExpr->right = new Constant(current().value);
+                    ((Constant*)binExpr->right)->constantType = "string";
+                }
             }
             advance();
         }

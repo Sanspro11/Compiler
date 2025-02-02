@@ -39,7 +39,7 @@ struct ReturnStatement : public ASTNode {
 
 struct Constant : public ASTNode {
     std::string value;  
-    std::string constantType;
+    std::string constantType = "uint64_t";
     Constant(std::string v) : value(v) { type = NodeType::Constant; }
     void print() const override {
         std::cout << value;
