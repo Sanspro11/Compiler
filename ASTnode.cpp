@@ -45,7 +45,12 @@ struct Constant : public ASTNode {
     std::string constantType = "uint64_t";
     Constant(std::string v) : value(v) { type = NodeType::Constant; }
     void print() const override {
-        std::cout << value;
+        if (constantType == "string") {
+            std::cout << "\"" << value << "\"";
+        }
+        else {
+            std::cout << value;
+        }
     }
 };
 

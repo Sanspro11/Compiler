@@ -39,42 +39,21 @@ private:
 
     ASTNode* parseStatement() {
         if (current().type == tokenType::RETURN) {
-            advance();
-            ReturnStatement* returnStmt = new ReturnStatement();
-
-            if (current().type == tokenType::CONSTANT) {
-                returnStmt->expression = parseExpression();
-            }
-            else {
-                returnStmt->expression = nullptr;
-            }
-
-            advance(); // ;
-
-            return returnStmt;
+            return parseReturnStatement();
         }
         else if (current().type == tokenType::TYPE) { // declaration
+            std::string type = current().value;
+            advance(); // type
+            std::string name = current().value;
+            advance(); // variable name
+            if (current().type == tokenType::SEMICOLON) {
+                advance(); // ;
+                return new VariableDeclaration(type,name);
+            }
 
         }
         else if (current().type == tokenType::NAME) {
-            
-            FunctionCall* funcCall = new FunctionCall();
-            std::string funcName = current().value;
-            funcCall->name = funcName;
-            advance();
-            // parameters here
-            advance(); // (
-            while (current().type != tokenType::PARENTHESES && current().value != ")") {
-                ASTNode* expression = parseExpression();
-                funcCall->arguments.push_back(expression);
-                if (current().type == tokenType::COMMA) {
-                    advance(); // ,
-                }
-            }
-            advance(); // )
-
-            advance(); // ;
-            return funcCall;
+            return parseFunctionCall();
         }
 
         return nullptr;  
@@ -155,6 +134,40 @@ private:
             advance();
         }
         return expression;
+    }
+    
+    ReturnStatement* parseReturnStatement() {
+        advance(); // return
+        ReturnStatement* returnStmt = new ReturnStatement();
+
+        if (current().type == tokenType::CONSTANT) {
+            returnStmt->expression = parseExpression();
+        }
+        else {
+            returnStmt->expression = nullptr;
+        }
+        advance(); // ;
+        return returnStmt;
+    }
+
+    ASTNode* parseFunctionCall() {
+        FunctionCall* funcCall = new FunctionCall();
+        std::string funcName = current().value;
+        funcCall->name = funcName;
+        advance(); // name
+        // parameters here
+        advance(); // (
+        while (current().type != tokenType::PARENTHESES && current().value != ")") {
+            ASTNode* expression = parseExpression();
+            funcCall->arguments.push_back(expression);
+            if (current().type == tokenType::COMMA) {
+                advance(); // ,
+            }
+        }
+        advance(); // )
+
+        advance(); // ;
+        return funcCall;
     }
 
     long long calculateOperation(const long long& value1,const  long long& value2,const std::string& operation) {

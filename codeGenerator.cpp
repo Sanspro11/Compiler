@@ -567,6 +567,20 @@ private:
         return {0x55};
     } // push rbp
 
+    std::vector<uint8_t> popRbp() { 
+        return {0x5D};
+    } // pop rbp
+
+    std::vector<uint8_t> leave() { 
+        return {0xC9};
+    } // leave, which is: 
+    // mov rsp, rbp
+    // pop rbp
+
+    std::vector<uint8_t> leaveCode() {
+        return {0xC9,0xC3};
+    } // leave then ret
+
     std::vector<uint8_t> ret() { 
         return {0xC3};
     } // ret
@@ -647,17 +661,19 @@ private:
             }
             std::string stringValue = constantValue->value;
             uint8_t value = std::stoll(stringValue);
-            auto exitCode = exitSyscall(value);
+            auto exitCode = movabs("rax",0);
+            addCode(exitCode,leaveCode());
             addCode(code,exitCode);
         }
         else {
-            addCode(code,ret());
+            addCode(code,leaveCode());
         }
     }
 
     void addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall*& functionCall) {
         std::vector<ASTNode*>& args = functionCall->arguments;
 
+        addCode(code,movabs("rax",0));
         for (size_t i = 0; i < args.size() && i <= 5; ++i) {
             if (args[i]->type == NodeType::Constant) {
                 Constant* constant = (Constant*)args[i];
@@ -707,13 +723,16 @@ private:
         }
 
 
+
+        auto leave = leaveCode();
         // end of function
         if (inMain) {
-            auto exitCode = exitSyscall(0);
-            addCode(code,exitCode);
+            auto movRax0 = movabs("rax",0);
+            addCode(movRax0,leave);
+            addCode(code,movRax0);
         }
         else {
-            addCode(code,ret());
+            addCode(code,leave);
         }
         // add symbol entry
         Symbol symbol{};
@@ -736,8 +755,8 @@ std::unordered_map<uint8_t,std::string> codeGenerator::positionToRegister = {
     {1,"rsi"},
     {2,"rdx"},
     {3,"rcx"},
-    {4,"r9"},
-    {5,"r8"}
+    {4,"r8"},
+    {5,"r9"}
 };
 std::unordered_map<std::string,std::vector<uint8_t>> codeGenerator::register64BitMov {
     {"rax",{0x48,0xb8}},

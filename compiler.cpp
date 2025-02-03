@@ -49,7 +49,6 @@ int main(int argc, char* argv[]) {
         std::cout << "Error while making object file " << filename;
         exit(1);
     }
-    
     std::cout << "Object file " << filename << " successfully created\n";
     exit(0);
 }
