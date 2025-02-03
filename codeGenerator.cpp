@@ -118,11 +118,6 @@ public:
         //strtab section ------------------------------------------------------------
         std::string strtabContents;
         strtabContents.push_back('\0');             // [0] empty
-        /*
-        strtabContents += "_start";  // offset=1
-        strtabContents.push_back('\0');
-        size_t offsetMain = 1;
-        */
 
         size_t offsetMyGlobalData = strtabContents.size();
         strtabContents += "myGlobalData";
@@ -185,7 +180,7 @@ public:
         symtab.resize(6 + functionSymbols.size() + stringSymbols.size()); // 6 static + functions + strings
         // NULL .text .data .bss data bss functions...
 
-        // Making all symbols
+        // making all symbols
         // 0) STN_UNDEF (all fields = 0)
         symtab[0] = Symbol{};
 
@@ -285,7 +280,7 @@ public:
 
         // elf header ------------------------------------------------------------
         const int numSections = 9;
-        // null, .text, .data, .bss, .symtab, .strtab, .shstrtab, .rela.text 
+        // null, .text, .data, .bss, .symtab, .strtab, .shstrtab, .rela.text, .rodata
 
         Elf64Header ehdr{};
         ehdr.e_ident[0] = 0x7F;
@@ -308,8 +303,7 @@ public:
         ehdr.e_phnum     = 0;
         ehdr.e_shentsize = sizeof(SectionHeader);
         ehdr.e_shnum     = numSections;
-        // The section containing section names is .shstrtab (index=6)
-        ehdr.e_shstrndx  = 7;
+        ehdr.e_shstrndx  = 8; // .shstrtab index
 
 
         // Section headers ------------------------------------------------------------
@@ -448,7 +442,7 @@ public:
         shdr[8].sh_offset = offset;
         offset += shdr[8].sh_size;
 
-        // 7) Write out the ELF file
+        // 7) write elf file
         std::ofstream ofs(filename, std::ios::binary);
         if (!ofs) return false;
 
@@ -577,9 +571,13 @@ private:
     // mov rsp, rbp
     // pop rbp
 
-    std::vector<uint8_t> leaveCode() {
+    std::vector<uint8_t> leaveFunction() {
         return {0xC9,0xC3};
     } // leave then ret
+
+    std::vector<uint8_t> startFunction() {
+        return {0x55,0x48,0x89,0xE5};
+    } // push rbp & mov rbp,rsp 
 
     std::vector<uint8_t> ret() { 
         return {0xC3};
@@ -662,18 +660,17 @@ private:
             std::string stringValue = constantValue->value;
             uint8_t value = std::stoll(stringValue);
             auto exitCode = movabs("rax",0);
-            addCode(exitCode,leaveCode());
+            addCode(exitCode,leaveFunction());
             addCode(code,exitCode);
         }
         else {
-            addCode(code,leaveCode());
+            addCode(code,leaveFunction());
         }
     }
 
     void addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall*& functionCall) {
         std::vector<ASTNode*>& args = functionCall->arguments;
 
-        addCode(code,movabs("rax",0));
         for (size_t i = 0; i < args.size() && i <= 5; ++i) {
             if (args[i]->type == NodeType::Constant) {
                 Constant* constant = (Constant*)args[i];
@@ -707,9 +704,7 @@ private:
         std::vector<uint8_t> code;
         bool inMain = function->name == entryFunctionName;
 
-        auto stackStartCode = pushRbp();
-        addCode(stackStartCode,movRspRbp());
-        addCode(code,stackStartCode);
+        addCode(code,startFunction());
         for (const ASTNode* statement : function->codeBlock->statements) {
             if (statement->type == NodeType::ReturnStatement) {
                 ReturnStatement* returnStatement = (ReturnStatement*)statement;
@@ -724,7 +719,7 @@ private:
 
 
 
-        auto leave = leaveCode();
+        auto leave = leaveFunction();
         // end of function
         if (inMain) {
             auto movRax0 = movabs("rax",0);

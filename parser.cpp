@@ -13,7 +13,7 @@ public:
             //includes
 
             //functions
-            if (current().type == tokenType::TYPE) { // make seperate in future
+            if (current().type == tokenType::TYPE) { // make separate in future
                 ASTNode* function = parseFunction();
                 programRoot->programElements.push_back(function);
             }
@@ -33,6 +33,15 @@ private:
     void advance() {
         ++index;
     }
+    void back() {
+        --index;
+    }
+    Token peekNext() {
+        if (index+1 < tokens.size()) {
+            return tokens[index+1];
+        }
+        return Token(tokenType::ENDOFFILE,"");
+    }
 
     std::vector<Token> tokens;
     size_t index = 0;
@@ -42,17 +51,12 @@ private:
             return parseReturnStatement();
         }
         else if (current().type == tokenType::TYPE) { // declaration
-            std::string type = current().value;
-            advance(); // type
-            std::string name = current().value;
-            advance(); // variable name
-            if (current().type == tokenType::SEMICOLON) {
-                advance(); // ;
-                return new VariableDeclaration(type,name);
-            }
-
+            return parseDeclaration();
         }
         else if (current().type == tokenType::NAME) {
+            if (peekNext().type == tokenType::ASSIGNMENT) {
+                return parseAssignment();
+            }
             return parseFunctionCall();
         }
 
@@ -96,8 +100,8 @@ private:
                 }
                 else if (expression->type == NodeType::BinaryExpression) {
                     BinaryExpression* binExpr = (BinaryExpression*)expression;
-                    if (binExpr->left->type == NodeType::Constant &&
-                     ((Constant*)binExpr->left)->constantType == "uint64_t") {
+                    if (binExpr->left->type == NodeType::Constant
+                        && ((Constant*)binExpr->left)->constantType == "uint64_t") {
                         Constant* otherNode = (Constant*)binExpr->left;
                         long long otherValue = std::stoll(otherNode->value);
                         const std::string& op = binExpr->op;
@@ -131,8 +135,30 @@ private:
                     ((Constant*)binExpr->right)->constantType = "string";
                 }
             }
+            else if (current().type == tokenType::NAME) {
+                if (peekNext().type == tokenType::PARENTHESES && peekNext().value == "(") { // functionCall
+                    if (expression == nullptr) {
+                        expression = parseFunctionCall();
+                    }
+                    else if (expression->type == NodeType::BinaryExpression) {
+                        BinaryExpression* binExpr = (BinaryExpression*)expression;
+                        binExpr->right = parseFunctionCall();
+                    }
+                }
+
+                else { // variable
+                    if (expression == nullptr) {
+                        expression = new Identifier(current().value);
+                    }
+                    else if (expression->type == NodeType::BinaryExpression) {
+                        BinaryExpression* binExpr = (BinaryExpression*)expression;
+                        binExpr->right = new Identifier(current().value);
+                    }
+                }
+            }
             advance();
         }
+        // token here should be ";" or "," or ")"
         return expression;
     }
     
@@ -170,7 +196,32 @@ private:
         return funcCall;
     }
 
-    long long calculateOperation(const long long& value1,const  long long& value2,const std::string& operation) {
+    ASTNode* parseDeclaration() {
+        // int x;
+        // int x = 1;
+        std::string type = current().value;
+        advance(); // type
+        std::string name = current().value;
+        if (peekNext().type == tokenType::SEMICOLON) { // int a;
+            advance(); // varName
+            advance(); // ;
+        }
+        // if the next token is not a semicolon, stop at the variable name,
+        // so the next parseStatement() would begin at "x = 1";
+        return new VariableDeclaration(type,name);
+    }
+    ASTNode* parseAssignment() {
+        // x = expression
+        std::string name = current().value;
+        Identifier* identifier = new Identifier(name);
+        advance(); // varName
+        advance(); // =
+        ASTNode* expression = parseExpression();
+        advance(); // ;
+        return new Assignment(identifier,expression);
+    }
+
+    long long calculateOperation(const long long& value1, const long long& value2, const std::string& operation) {
         if (operation == "+") 
             return value1 + value2;
         

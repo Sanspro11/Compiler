@@ -174,18 +174,12 @@ struct Assignment : public ASTNode {
 struct VariableDeclaration : public ASTNode {
     std::string varType;
     std::string varName;
-    ASTNode* initializer;  
 
-    VariableDeclaration(const std::string& varType, const std::string& varName, ASTNode* initializer = nullptr)
-    : varType(varType), varName(varName), initializer(initializer)
-    {type = NodeType::VariableDeclaration;}
+    VariableDeclaration(const std::string& varType, const std::string& varName)
+    : varType(varType), varName(varName) {type = NodeType::VariableDeclaration;}
 
     void print() const override {
         std::cout << "VariableDeclaration: " << varType << " " << varName;
-        if (initializer != nullptr) {
-            std::cout << " = ";
-            initializer->print();
-        }
     }
 };
 
