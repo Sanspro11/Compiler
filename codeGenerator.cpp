@@ -303,7 +303,7 @@ public:
         ehdr.e_phnum     = 0;
         ehdr.e_shentsize = sizeof(SectionHeader);
         ehdr.e_shnum     = numSections;
-        ehdr.e_shstrndx  = 8; // .shstrtab index
+        ehdr.e_shstrndx  = 7; // .shstrtab index
 
 
         // Section headers ------------------------------------------------------------
@@ -510,13 +510,17 @@ private:
 
     std::unordered_map<std::string,size_t> nameToSymbolOffset;
     std::vector<size_t> stringNumToSymbolOffset;
-    size_t currentCodeOffset = 0;
+    size_t currentFunctionOffset = 0;
     size_t currentStringsOffset = 0;
     
     static std::unordered_map<uint8_t,std::string> positionToRegister;
     static std::unordered_map<std::string,std::vector<uint8_t>> register64BitMov;
     static std::unordered_map<std::string,std::vector<uint8_t>> register64BitLeaStub;
+    static std::unordered_map<std::string,std::vector<uint8_t>> movRaxToReg;
+    static std::unordered_map<std::string,uint8_t> typeSizes;
     
+    std::unordered_map<std::string,size_t> variableToOffset;
+    std::unordered_map<std::string,std::string> variableToType;
     
 
 
@@ -589,7 +593,7 @@ private:
 
     std::vector<uint8_t> movRaxQwordRbpOffset(uint32_t offset) { 
         std::vector<uint8_t> code = {0x48,0x8b,0x85};
-        offset = ~offset;
+        offset = ~offset + 1;
         uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&offset);
         for (size_t i = 0; i < 4; ++i) {
             code.push_back(*(bytePtr + i));
@@ -599,7 +603,7 @@ private:
 
     std::vector<uint8_t> movRbpQwordOffsetRax(uint32_t offset) { 
         std::vector<uint8_t> code = {0x48,0x89,0x85};
-        offset = ~offset;
+        offset = ~offset + 1;
         uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&offset);
         for (size_t i = 0; i < 4; ++i) {
             code.push_back(*(bytePtr + i));
@@ -614,9 +618,40 @@ private:
             code.push_back(*(bytePtr + i));
         }
         return code;
-    } // sub Rsp, num
+    } // sub rsp, num
 
+    std::vector<uint8_t> movRegRax(std::string& reg) { 
+        return movRaxToReg[reg];
+    } // mov reg, rax
 
+    void parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expression, std::string reg) {
+        if (expression->type == NodeType::Constant) {
+            Constant* constant = (Constant*)expression;
+            if (constant->constantType == "uint64_t") {
+                uint64_t value = std::stoll(constant->value);
+                auto movCode = movabs(reg,value);
+                addCode(code,movCode);
+            }
+            else if (constant->constantType == "string") {
+                addConstantStringToRegToCode(code,constant,reg);
+            }
+            return;
+        }
+        if (expression->type == NodeType::Identifier) {
+            Identifier* identifier = (Identifier*)expression;
+            const std::string& varName = identifier->name;
+            const std::string& type = variableToType[varName];
+            const size_t varSize = typeSizes[type];
+            size_t varOffset = variableToOffset[varName];
+            if (type == "uint64_t" || type == "uint32_t"|| type == "uint16_t"|| type == "uint8_t"|| type == "int") {
+                addCode(code,movRaxQwordRbpOffset(varOffset));
+                if (reg != "rax") {
+                    addCode(code,movRegRax(reg));
+                }
+            }
+        }
+
+    }
     
     void addConstantStringToRegToCode(std::vector<uint8_t>& code,const Constant* constant, const std::string& reg) { 
         const std::string& value = constant->value;
@@ -635,7 +670,7 @@ private:
         stringSymbols.push_back(sym);
         
         auto movabsCodeStub = movabs(reg,0);
-        size_t stringAddressOffset = code.size() + currentCodeOffset + register64BitMov[reg].size();
+        size_t stringAddressOffset = code.size() + currentFunctionOffset + register64BitMov[reg].size();
         
         // add relocation entry
         Elf64_Rela rel{};
@@ -648,20 +683,8 @@ private:
 
     void addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement*& returnStatement, bool inMain) {
         if (inMain) { // supposes int return
-            Constant* constantValue;
-            // only supports constant returns
-            if (returnStatement->expression->type == NodeType::BinaryExpression) {
-                // implement expression
-            }
-            else if (returnStatement->expression->type == NodeType::Constant && 
-            ((Constant*)returnStatement->expression)->constantType == "uint64_t") {
-                constantValue = (Constant*)returnStatement->expression;
-            }
-            std::string stringValue = constantValue->value;
-            uint8_t value = std::stoll(stringValue);
-            auto exitCode = movabs("rax",0);
-            addCode(exitCode,leaveFunction());
-            addCode(code,exitCode);
+            parseExpressionToReg(code,returnStatement->expression,"rax");
+            addCode(code,leaveFunction());
         }
         else {
             addCode(code,leaveFunction());
@@ -672,25 +695,14 @@ private:
         std::vector<ASTNode*>& args = functionCall->arguments;
 
         for (size_t i = 0; i < args.size() && i <= 5; ++i) {
-            if (args[i]->type == NodeType::Constant) {
-                Constant* constant = (Constant*)args[i];
-                if (constant->constantType == "uint64_t") {
-                    uint64_t value = std::stoll(constant->value);
-                    std::string reg = positionToRegister[i];
-                    auto movCode = movabs(reg,value);
-                    addCode(code,movCode);
-                }
-                else if (constant->constantType == "string") {
-                    std::string reg = positionToRegister[i]; 
-                    addConstantStringToRegToCode(code,constant,reg);
-                }
-            }
+            std::string reg = positionToRegister[i];
+            parseExpressionToReg(code,args[i],reg);
         }
 
         //call
         // add .rela.text entry
         Elf64_Rela rel{};
-        rel.r_offset = currentCodeOffset + code.size() + 1;
+        rel.r_offset = currentFunctionOffset + code.size() + 1;
         rel.r_addend = -4; // constant
         // add reloc.info later (.symtab index + relocation type)
         relaTextEntries.push_back(rel);
@@ -699,12 +711,39 @@ private:
         addCode(code,callCode);
     }
 
+    void addAssignmentToCode(std::vector<uint8_t>& code,Assignment*& assignment) {
+        // mov [rbp+offset], expression
+        const Identifier* identifier = assignment->identifier;
+        const std::string& varName = identifier->name;
+        const size_t varOffset = variableToOffset[varName];
+        parseExpressionToReg(code,assignment->expression,"rax");
+        auto movToReg = movRbpQwordOffsetRax(varOffset);
+        addCode(code,movToReg);
+    }
+
 
     std::vector<uint8_t> generateCodeFromFunction(Function* function) {
         std::vector<uint8_t> code;
         bool inMain = function->name == entryFunctionName;
 
+        size_t varSizes = 0;
+
+        for (const ASTNode* statement : function->codeBlock->statements) {
+            if (statement->type == NodeType::VariableDeclaration) {
+                VariableDeclaration* declaration = (VariableDeclaration*)statement;
+                const std::string& varType = declaration->varType;
+                const std::string& varName = declaration->varName;
+                varSizes += typeSizes[varType];
+                variableToType[varName] = varType;
+                variableToOffset[varName] = varSizes;
+            }
+        }
+        size_t pad = (16 - (varSizes % 16)) % 16; // pad to 16
+
         addCode(code,startFunction());
+        if (varSizes > 0) {
+            addCode(code,subRsp(varSizes + pad));
+        }
         for (const ASTNode* statement : function->codeBlock->statements) {
             if (statement->type == NodeType::ReturnStatement) {
                 ReturnStatement* returnStatement = (ReturnStatement*)statement;
@@ -715,33 +754,33 @@ private:
                 FunctionCall* functionCall = (FunctionCall*)statement;
                 addFunctionCallToCode(code,functionCall);
             }
+
+            else if (statement->type == NodeType::Assignment) {
+                Assignment* assignment = (Assignment*)statement;
+                addAssignmentToCode(code,assignment);
+            }
         }
 
-
-
-        auto leave = leaveFunction();
         // end of function
         if (inMain) {
-            auto movRax0 = movabs("rax",0);
-            addCode(movRax0,leave);
-            addCode(code,movRax0);
+            addCode(code,movabs("rax",0));
         }
-        else {
-            addCode(code,leave);
-        }
+        addCode(code,leaveFunction());
+
         // add symbol entry
         Symbol symbol{};
 
         //symbol.st_name  = index in .strtab, taken care of later
         symbol.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(FUNCTION_SYMBOL_TYPE);
         symbol.st_shndx = 1;                // in .text
-        symbol.st_value = currentCodeOffset;// offset from start of .text
+        symbol.st_value = currentFunctionOffset;// offset from start of .text
         symbol.st_size  = code.size();  // function size
         functionSymbols.push_back(symbol);
         functionSymbolNames.push_back(function->name);
         localFunctions[function->name] = true;
 
-        currentCodeOffset += code.size();
+        currentFunctionOffset += code.size();
+        variableToOffset.clear();
         return code;
     }
 };
@@ -770,4 +809,21 @@ std::unordered_map<std::string,std::vector<uint8_t>> codeGenerator::register64Bi
     {"rcx",{0x48,0x8d,0x0c,0x25}},
     {"r9",{0x4c,0x8d,0x0c,0x25}},
     {"r8",{0x4c,0x8d,0x04,0x25}}
+};
+
+std::unordered_map<std::string,std::vector<uint8_t>> codeGenerator::movRaxToReg {
+    {"rdi",{0x48,0x89,0xc7}},
+    {"rsi",{0x48,0x89,0xc6}},
+    {"rdx",{0x48,0x89,0xc2}},
+    {"rcx",{0x48,0x89,0xc1}},
+    {"r9",{0x49,0x89,0xc1}},
+    {"r8",{0x49,0x89,0xc0}}
+};
+
+std::unordered_map<std::string,uint8_t> codeGenerator::typeSizes {
+    {"int",4},
+    {"uint8_t",1},
+    {"uint16_t",2},
+    {"uint32_t",4},
+    {"uint64_t",8}
 };

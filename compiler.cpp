@@ -43,7 +43,6 @@ int main(int argc, char* argv[]) {
         filename += ".o";
     }
 
-    /*
     codeGenerator programGenerator = codeGenerator();
     programGenerator.entryFunctionName = "main";
     bool success = programGenerator.generateObjectFile(treeRoot,filename);
@@ -52,6 +51,5 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
     std::cout << "Object file " << filename << " successfully created\n";
-    */
     exit(0);
 }
