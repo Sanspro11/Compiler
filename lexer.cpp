@@ -96,10 +96,12 @@ private:
             return Token(tokenType::PARENTHESES, str);
         } else if (str == ",") {
             return Token(tokenType::COMMA, str);
-        } else if (isType(str)) {
-            return Token(tokenType::TYPE, str);
         } else if (str == "=") {
             return Token(tokenType::ASSIGNMENT, str);
+        } else if (str == "&") {
+            return Token(tokenType::ADDRESSOF, str);
+        } else if (isType(str)) {
+            return Token(tokenType::TYPE, str);
         } else if (std::isdigit(str[0])) { 
             return Token(tokenType::CONSTANT, str);
         } 
@@ -143,4 +145,5 @@ std::unordered_map<char,bool> lexer::symbols = {
     {',',true},
     {';',true},
     {'=',true},
+    {'&',true},
 };

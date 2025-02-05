@@ -16,8 +16,10 @@ enum class NodeType {
     FunctionCall,
     VariableDeclaration,
     Identifier,
+    UnaryExpression,
     Assignment
 };
+
 
 struct ASTNode {
     virtual ~ASTNode() = default;
@@ -39,6 +41,7 @@ struct ReturnStatement : public ASTNode {
         }
     }
 };
+
 
 struct Constant : public ASTNode {
     std::string value;  
@@ -72,6 +75,24 @@ struct BinaryExpression : public ASTNode {
         std::cout << " " << op << " ";
         if (right) {
             right->print();
+        }
+        else {
+            std::cout << "NULL";
+        }
+        std::cout << ")";
+    }
+};
+
+struct UnaryExpression : public ASTNode {
+    ASTNode* expression;
+    std::string op;
+    UnaryExpression(const std::string& op) : op(op) { type = NodeType::UnaryExpression; }
+    UnaryExpression() { type = NodeType::UnaryExpression; }
+
+    void print() const override {
+        std::cout << "(" << op << " ";
+        if (expression) {
+            expression->print();
         }
         else {
             std::cout << "NULL";

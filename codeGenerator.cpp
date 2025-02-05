@@ -601,6 +601,7 @@ private:
         return code;
     } // mov rax, [rbp-0xOFFSET]
 
+
     std::vector<uint8_t> movRbpQwordOffsetRax(uint32_t offset) { 
         std::vector<uint8_t> code = {0x48,0x89,0x85};
         offset = ~offset + 1;
@@ -610,6 +611,16 @@ private:
         }
         return code;
     } // mov [rbp-0xOFFSET], rax
+
+    std::vector<uint8_t> leaRaxQwordRbpOffset(uint32_t offset) { 
+        std::vector<uint8_t> code = {0x48,0x8d,0x85};
+        offset = ~offset + 1;
+        uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&offset);
+        for (size_t i = 0; i < 4; ++i) {
+            code.push_back(*(bytePtr + i));
+        }
+        return code;
+    } // lea rax, [rbp-0xOFFSET]
 
     std::vector<uint8_t> subRsp(uint32_t num) { 
         std::vector<uint8_t> code = {0x48,0x81,0xEC};
@@ -646,6 +657,18 @@ private:
             if (type == "uint64_t" || type == "uint32_t"|| type == "uint16_t"|| type == "uint8_t"|| type == "int") {
                 addCode(code,movRaxQwordRbpOffset(varOffset));
                 if (reg != "rax") {
+                    addCode(code,movRegRax(reg));
+                }
+            }
+        }
+        if (expression->type == NodeType::UnaryExpression) {
+            UnaryExpression* unaryExpr = (UnaryExpression*)expression;
+            if (unaryExpr->op == "&") {
+                if (unaryExpr->expression->type == NodeType::Identifier) {
+                    Identifier* identifier = (Identifier*)unaryExpr->expression;
+                    const std::string& varName = identifier->name;
+                    size_t varOffset = variableToOffset[varName];
+                    addCode(code,leaRaxQwordRbpOffset(varOffset));
                     addCode(code,movRegRax(reg));
                 }
             }

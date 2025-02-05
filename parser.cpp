@@ -23,6 +23,9 @@ public:
     }
 
 private:
+    std::vector<Token> tokens;
+    size_t index = 0;
+
     Token current() {
         if (index < tokens.size()) {
             return tokens[index];
@@ -42,9 +45,6 @@ private:
         }
         return Token(tokenType::ENDOFFILE,"");
     }
-
-    std::vector<Token> tokens;
-    size_t index = 0;
 
     ASTNode* parseStatement() {
         if (current().type == tokenType::RETURN) {
@@ -94,6 +94,7 @@ private:
         ASTNode* expression = nullptr;
         while (current().type != tokenType::SEMICOLON && current().type != tokenType::COMMA 
         && !(current().type == tokenType::PARENTHESES && current().value == ")") ) {
+
             if (current().type == tokenType::CONSTANT) { 
                 if (expression == nullptr) {
                     expression = new Constant(current().value);
@@ -135,6 +136,7 @@ private:
                     ((Constant*)binExpr->right)->constantType = "string";
                 }
             }
+
             else if (current().type == tokenType::NAME) {
                 if (peekNext().type == tokenType::PARENTHESES && peekNext().value == "(") { // functionCall
                     if (expression == nullptr) {
@@ -154,7 +156,22 @@ private:
                         BinaryExpression* binExpr = (BinaryExpression*)expression;
                         binExpr->right = new Identifier(current().value);
                     }
+                    else if (expression->type == NodeType::UnaryExpression) {
+                        UnaryExpression* unaryExpr = (UnaryExpression*)expression;
+                        unaryExpr->expression = new Identifier(current().value);
+                    }
                 }
+            }
+
+            else if (current().type == tokenType::ADDRESSOF) {
+                if (expression == nullptr) {
+                    expression = new UnaryExpression("&");
+                }
+                else if (expression->type == NodeType::BinaryExpression) {
+                    BinaryExpression* binExpr = (BinaryExpression*)expression;
+                    binExpr->right = new UnaryExpression("&");
+                }
+                
             }
             advance();
         }
@@ -210,6 +227,7 @@ private:
         // so the next parseStatement() would begin at "x = 1";
         return new VariableDeclaration(type,name);
     }
+
     ASTNode* parseAssignment() {
         // x = expression
         std::string name = current().value;

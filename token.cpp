@@ -14,6 +14,7 @@ enum tokenType {
     COMMA,
     STRING,
     ASSIGNMENT,
+    ADDRESSOF,
     ENDOFFILE
 };
 
