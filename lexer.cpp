@@ -12,24 +12,49 @@ public:
         int line = 1;
         int column = 0;
         char ch;
-        bool backwardsSlash = false;
+        char lastCh = 0;
+        bool inComment = false;
         try {
             while (fileStream.get(ch)) {
                 ++column;
+
+                if (ch == '\n' || ch == '\r') { 
+                    inComment = false;
+                    ++line;
+                    column = 0;
+                    currentToken.clear();
+                    lastCh = 0;
+                    continue;
+                }
+                if (inComment) 
+                    continue;
+
+                if (lastCh == '/' && ch == '/') {
+                    inComment = true;
+                    continue;
+                }
+
+                if (ch == '/') {
+                    lastCh = ch;
+                    continue;
+                }
+
+                if (lastCh == '/' && ch != '/') {
+                    currentToken += "/";
+                }
+
                 if (inString && ch != '\"') {
-                    if (backwardsSlash) {
-                        backwardsSlash = false;
+                    if (lastCh == '\\') {
                         if (ch == 'n') {
                             currentToken[currentToken.size()-1] = '\n';
                         }
                         continue;
                     }
-                    if (ch == '\\') {
-                        backwardsSlash = true;
-                    }
+                    lastCh = ch;
                     currentToken += ch;
                     continue;
                 }
+
                 if (ch == '\"') {
                     if (!inString) {
                         inString = true;
@@ -40,6 +65,7 @@ public:
                     inString = false;
                     continue;
                 }
+
                 if (ch == ' ') {
                     if (!currentToken.empty()) {
                         tokens.push_back(createToken(currentToken));
@@ -47,11 +73,7 @@ public:
                     }
                     continue;
                 }
-                if (ch == '\n' || ch == '\r') { 
-                    ++line;
-                    column = 1;
-                    continue;
-                }
+
 
                 if (isKeyword(currentToken) || isSymbol(ch) || isType(currentToken)) {
                     if ((isSymbol(ch)) && !currentToken.empty()) {
@@ -63,7 +85,9 @@ public:
                     currentToken.clear();
                     continue;
                 }
+
                 currentToken += ch;
+                lastCh = ch;
             }
         }
         catch (const std::exception& e) {

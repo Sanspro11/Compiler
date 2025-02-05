@@ -8,12 +8,13 @@
 #include "codeGenerator.cpp"
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
+    if (argc != 2 && false) {
         std::cerr << "Usage: compiler <filename>";
         exit(1);
     }
 
-    std::string filename = argv[1];
+    std::string filename = "testFile";
+    //std::string filename = argv[1];
     std::ifstream fileStream = std::ifstream(filename);
     if (!fileStream.is_open()) {
         std::cerr << "Error opening file: " << filename;
