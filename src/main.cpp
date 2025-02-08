@@ -1,27 +1,26 @@
 #include <vector>
 #include <fstream>
 #include <string>
-#include "token.cpp"
-#include "ASTnode.cpp"
-#include "parser.cpp"
-#include "lexer.cpp"
-#include "codeGenerator.cpp"
+#include "token.hpp"
+#include "ASTnode.hpp"
+#include "parser.hpp"
+#include "lexer.hpp"
+#include "codeGen.hpp"
 
 int main(int argc, char* argv[]) {
-    if (argc != 2 && false) {
+    if (argc != 2) {
         std::cerr << "Usage: compiler <filename>";
         exit(1);
     }
 
-    std::string filename = "testFile";
-    //std::string filename = argv[1];
+    std::string filename = argv[1];
     std::ifstream fileStream = std::ifstream(filename);
     if (!fileStream.is_open()) {
         std::cerr << "Error opening file: " << filename;
         exit(1);
     }
 
-    std::vector<Token> tokens = lexer::tokenize(fileStream);
+    std::vector<Token> tokens = Lexer::tokenize(fileStream);
     fileStream.close();
     std::cout << "List of tokens:\n";
     for (size_t i = 0; i < tokens.size(); ++i) {
@@ -43,7 +42,7 @@ int main(int argc, char* argv[]) {
         filename += ".o";
     }
 
-    codeGenerator programGenerator = codeGenerator();
+    codeGen programGenerator = codeGen();
     programGenerator.entryFunctionName = "main";
     bool success = programGenerator.generateObjectFile(treeRoot,filename);
     if (!success) {

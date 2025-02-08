@@ -66,6 +66,7 @@ struct BinaryExpression : public ASTNode {
     BinaryExpression() { type = NodeType::BinaryExpression; }
 
     void print() const override {
+        std::cout << "(";
         if (left) {
             left->print();
         }
