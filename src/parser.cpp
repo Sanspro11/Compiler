@@ -100,13 +100,14 @@ ASTNode* Parser::parseExpression() {
                     long long otherValue = std::stoll(otherNode->value);
                     const std::string& op = binExpr->op;
                     long long value = std::stoll(current().value); // assuming only constant numbers
-                    value = calculateOperation(value,otherValue,op);
+                    value = calculateOperation(otherValue,value,op);
                     expression = new Constant(std::to_string(value));
                 }
                 else {
                     binExpr->right = new Constant(current().value);
                 }
             }
+            advance(); // constant
         }
 
         else if (current().type == tokenType::OPERATION) {
@@ -114,7 +115,7 @@ ASTNode* Parser::parseExpression() {
             binExpr->left = expression;
             binExpr->op = current().value;
             expression = binExpr;
-
+            advance(); // operation
         }
 
         else if (current().type == tokenType::STRING) {
@@ -128,6 +129,7 @@ ASTNode* Parser::parseExpression() {
                 binExpr->right = new Constant(current().value);
                 ((Constant*)binExpr->right)->constantType = "string";
             }
+            advance(); // string
         }
 
         else if (current().type == tokenType::NAME) {
@@ -153,6 +155,7 @@ ASTNode* Parser::parseExpression() {
                     UnaryExpression* unaryExpr = (UnaryExpression*)expression;
                     unaryExpr->expression = new Identifier(current().value);
                 }
+                advance(); // identifier name 
             }
         }
 
@@ -164,10 +167,7 @@ ASTNode* Parser::parseExpression() {
                 BinaryExpression* binExpr = (BinaryExpression*)expression;
                 binExpr->right = new UnaryExpression("&");
             }
-            
-        }
-        if (shouldExpressionContinue()) {
-            advance();
+            advance(); // &
         }
     }
     // token here should be ";" or "," or ")"
