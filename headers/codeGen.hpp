@@ -92,9 +92,11 @@ class codeGen {
         void addCode(std::vector<uint8_t>& code,const std::vector<uint8_t>& codeToAdd);
         void parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expression, std::string reg);
         void addConstantStringToRegToCode(std::vector<uint8_t>& code,const Constant* constant, const std::string& reg);
-        void addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement*& returnStatement, bool inMain);
+        void addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement*& returnStatement);
         void addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall*& functionCall);
         void addAssignmentToCode(std::vector<uint8_t>& code,Assignment*& assignment);
+        void addCodeBlockToCode(std::vector<uint8_t>& code,CodeBlock* codeBlock);
+        void addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeBlock);
         std::vector<uint8_t> generateCodeFromFunction(Function* function);
 
 

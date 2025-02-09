@@ -464,6 +464,13 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
             }
         }
     }
+    if (expression->type == NodeType::FunctionCall) {
+        FunctionCall* functionCall = (FunctionCall*)expression;
+        addFunctionCallToCode(code,functionCall); // returns in rax
+        if (reg != "rax") {
+            addCode(code,movRegRax(reg));
+        }
+    }
     if (expression->type == NodeType::BinaryExpression) {
         BinaryExpression* binExpr = (BinaryExpression*)expression;
         ASTNode*& left = binExpr->left;
@@ -511,14 +518,9 @@ void codeGen::addConstantStringToRegToCode(std::vector<uint8_t>& code,const Cons
     addCode(code,movabsCodeStub);
 } 
 
-void codeGen::addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement*& returnStatement, bool inMain) {
-    if (inMain) { // supposes int return
-        parseExpressionToReg(code,returnStatement->expression,"rax");
-        addCode(code,leaveFunction());
-    }
-    else {
-        addCode(code,leaveFunction());
-    }
+void codeGen::addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement*& returnStatement) {
+    parseExpressionToReg(code,returnStatement->expression,"rax");
+    addCode(code,leaveFunction());
 }
 
 void codeGen::addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall*& functionCall) {
@@ -529,7 +531,6 @@ void codeGen::addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall*& fu
         parseExpressionToReg(code,args[i],reg);
     }
 
-    //call
     // add .rela.text entry
     Elf64_Rela rel{};
     rel.r_offset = currentFunctionOffset + code.size() + 1;
@@ -537,8 +538,7 @@ void codeGen::addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall*& fu
     // add reloc.info later (.symtab index + relocation type)
     relaTextEntries.push_back(rel);
     relaFuncStrings.push_back(functionCall->name);
-    auto callCode = call();
-    addCode(code,callCode);
+    addCode(code,call());
 }
 
 void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment*& assignment) {
@@ -552,32 +552,11 @@ void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment*& assign
 }
 
 
-std::vector<uint8_t> codeGen::generateCodeFromFunction(Function* function) {
-    std::vector<uint8_t> code;
-    bool inMain = function->name == entryFunctionName;
-
-    size_t varSizes = 0;
-
-    for (const ASTNode* statement : function->codeBlock->statements) {
-        if (statement->type == NodeType::VariableDeclaration) {
-            VariableDeclaration* declaration = (VariableDeclaration*)statement;
-            const std::string& varType = declaration->varType;
-            const std::string& varName = declaration->varName;
-            varSizes += typeSizes[varType];
-            variableToType[varName] = varType;
-            variableToOffset[varName] = varSizes;
-        }
-    }
-    size_t pad = (16 - (varSizes % 16)) % 16; // pad to 16
-
-    addCode(code,startFunction());
-    if (varSizes > 0) {
-        addCode(code,subRsp(varSizes + pad));
-    }
-    for (const ASTNode* statement : function->codeBlock->statements) {
+void codeGen::addCodeBlockToCode(std::vector<uint8_t>& code,CodeBlock* codeBlock) {
+    for (const ASTNode* statement : codeBlock->statements) {
         if (statement->type == NodeType::ReturnStatement) {
             ReturnStatement* returnStatement = (ReturnStatement*)statement;
-            addReturnStatementToCode(code,returnStatement,inMain);
+            addReturnStatementToCode(code,returnStatement);
         }
 
         else if (statement->type == NodeType::FunctionCall) {
@@ -590,8 +569,35 @@ std::vector<uint8_t> codeGen::generateCodeFromFunction(Function* function) {
             addAssignmentToCode(code,assignment);
         }
     }
+}
 
-    // end of function
+void codeGen::addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeBlock) {
+    size_t varSizes = 0;
+    for (const ASTNode* statement : codeBlock->statements) {
+        if (statement->type == NodeType::VariableDeclaration) {
+            VariableDeclaration* declaration = (VariableDeclaration*)statement;
+            const std::string& varType = declaration->varType;
+            const std::string& varName = declaration->varName;
+            varSizes += typeSizes[varType];
+            variableToType[varName] = varType;
+            variableToOffset[varName] = varSizes;
+        }
+    }
+    size_t pad = (16 - (varSizes % 16)) % 16; // pad to 16
+    addCode(code,startFunction());
+    if (varSizes > 0) {
+        addCode(code,subRsp(varSizes + pad));
+    }
+}
+
+std::vector<uint8_t> codeGen::generateCodeFromFunction(Function* function) {
+    std::vector<uint8_t> code;
+    CodeBlock* codeBlock = function->codeBlock;
+    addDeclarationsToCode(code,codeBlock);
+
+    addCodeBlockToCode(code,codeBlock);
+
+    bool inMain = (function->name == entryFunctionName);
     if (inMain) {
         addCode(code,movabs("rax",0));
     }
@@ -603,7 +609,7 @@ std::vector<uint8_t> codeGen::generateCodeFromFunction(Function* function) {
     //symbol.st_name  = index in .strtab, taken care of later
     symbol.st_info  = ELF64_ST_BIND(GLOBAL_SYMBOL) | ELF64_ST_TYPE(FUNCTION_SYMBOL_TYPE);
     symbol.st_shndx = 1;                // in .text
-    symbol.st_value = currentFunctionOffset;// offset from start of .text
+    symbol.st_value = currentFunctionOffset; // offset from start of .text
     symbol.st_size  = code.size();  // function size
     functionSymbols.push_back(symbol);
     functionSymbolNames.push_back(function->name);

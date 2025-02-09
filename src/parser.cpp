@@ -77,6 +77,7 @@ CodeBlock* Parser::parseCodeBlock() {
         advance(); // {
         while (current().type != tokenType::BRACE && current().value != "}") {
             ASTNode* statement = parseStatement();
+            advance(); // ;
             codeBlock->statements.push_back(statement);
         }
         advance(); // }
@@ -86,9 +87,7 @@ CodeBlock* Parser::parseCodeBlock() {
 
 ASTNode* Parser::parseExpression() {
     ASTNode* expression = nullptr;
-    while (current().type != tokenType::SEMICOLON && current().type != tokenType::COMMA 
-    && !(current().type == tokenType::PARENTHESES && current().value == ")") ) {
-
+    while (shouldExpressionContinue()){
         if (current().type == tokenType::CONSTANT) { 
             if (expression == nullptr) {
                 expression = new Constant(current().value);
@@ -167,23 +166,23 @@ ASTNode* Parser::parseExpression() {
             }
             
         }
-        advance();
+        if (shouldExpressionContinue()) {
+            advance();
+        }
     }
     // token here should be ";" or "," or ")"
     return expression;
+}
+bool Parser::shouldExpressionContinue() {
+    return current().type != tokenType::SEMICOLON
+    && current().type != tokenType::COMMA 
+    && !(current().type == tokenType::PARENTHESES && current().value == ")");
 }
 
 ReturnStatement* Parser::parseReturnStatement() {
     advance(); // return
     ReturnStatement* returnStmt = new ReturnStatement();
-
-    if (current().type == tokenType::CONSTANT) {
-        returnStmt->expression = parseExpression();
-    }
-    else {
-        returnStmt->expression = nullptr;
-    }
-    advance(); // ;
+    returnStmt->expression = parseExpression();
     return returnStmt;
 }
 
@@ -202,8 +201,6 @@ ASTNode* Parser::parseFunctionCall() {
         }
     }
     advance(); // )
-
-    advance(); // ;
     return funcCall;
 }
 
@@ -215,7 +212,6 @@ ASTNode* Parser::parseDeclaration() {
     std::string name = current().value;
     if (peekNext().type == tokenType::SEMICOLON) { // int a;
         advance(); // varName
-        advance(); // ;
     }
     // if the next token is not a semicolon, stop at the variable name,
     // so the next parseStatement() would begin at "x = 1";
@@ -229,7 +225,6 @@ ASTNode* Parser::parseAssignment() {
     advance(); // varName
     advance(); // =
     ASTNode* expression = parseExpression();
-    advance(); // ;
     return new Assignment(identifier,expression);
 }
 

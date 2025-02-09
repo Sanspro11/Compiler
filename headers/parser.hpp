@@ -19,6 +19,7 @@ class Parser {
         ASTNode* parseFunction();
         CodeBlock* parseCodeBlock();
         ASTNode* parseExpression();
+        bool shouldExpressionContinue();
         ReturnStatement* parseReturnStatement();
         ASTNode* parseFunctionCall();
         ASTNode* parseDeclaration();
