@@ -30,6 +30,7 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "\n";
 
+    /*
     Parser parser = Parser(tokens);
     ProgramRoot* treeRoot = parser.parse();
     treeRoot->print();
@@ -50,5 +51,6 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
     std::cout << "Object file " << filename << " successfully created\n";
+    */
     exit(0);
 }

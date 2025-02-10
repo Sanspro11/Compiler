@@ -15,6 +15,9 @@ enum tokenType {
     STRING,
     ASSIGNMENT,
     ADDRESSOF,
+    IF,
+    WHILE,
+    COMPARISON,
     ENDOFFILE
 };
 

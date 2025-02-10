@@ -7,7 +7,7 @@
 
 std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
     std::vector<Token> tokens;
-    std::string currentToken;
+    std::string current;
     int line = 1;
     int column = 0;
     char ch;
@@ -20,7 +20,7 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
                 inComment = false;
                 ++line;
                 column = 0;
-                currentToken.clear();
+                current.clear();
                 continue;
             }
 
@@ -30,15 +30,15 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
             if (inString && ch != '\"') {
                 if (ch == '\\') {
                     fileStream.get(ch);
-                    if (specialChars.find(ch) != specialChars.end()) {
-                        currentToken += specialChars[ch];
+                    if (escapeChars.find(ch) != escapeChars.end()) {
+                        current += escapeChars[ch];
                     }
                     else {
-                        currentToken += ch; 
+                        current += ch; 
                     }
                     continue;
                 }
-                currentToken += ch;
+                current += ch;
                 continue;
             }
 
@@ -49,11 +49,30 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
                     continue;
                 }
 
-                tokens.push_back(createToken(currentToken));
-                currentToken.clear();
+                tokens.push_back(createToken(current));
+                current.clear();
                 tokens.push_back(createToken("/"));
-                currentToken += ch;
+                current += ch;
                 continue;
+            }
+
+            // int a = 0;
+            // if (a >= a);
+            if (ch == '=' || ch == '<' || ch == '>') { // 2 char symbols
+                if (!current.empty()) {
+                    tokens.push_back(createToken(current));
+                    current.clear();
+                }
+                current += ch;
+                fileStream.get(ch);
+                current += ch;
+                if (current == "==" || current == "<=" || current == ">=") {
+                    tokens.push_back(createToken(current));
+                }
+                else {
+                    tokens.push_back(createToken(std::string(1,current[0])));
+                }
+                current.clear();
             }
 
             if (ch == '\"') {
@@ -61,37 +80,42 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
                     inString = true;
                     continue;
                 }
-                tokens.push_back(createToken(currentToken));
-                currentToken.clear();
+                tokens.push_back(createToken(current));
+                current.clear();
                 inString = false;
                 continue;
             }
 
             if (ch == ' ') {
-                if (!currentToken.empty()) {
-                    tokens.push_back(createToken(currentToken));
-                    currentToken.clear();
+                if (!current.empty()) {
+                    tokens.push_back(createToken(current));
                 }
+                current.clear();
                 continue;
             }
 
-            if (isKeyword(currentToken) || isSymbol(ch) || isType(currentToken)) {
-                if ((isSymbol(ch)) && !currentToken.empty()) {
-                    tokens.push_back(createToken(currentToken));
-                    currentToken.clear();
-                }
-                currentToken += ch;
-                tokens.push_back(createToken(currentToken));
-                currentToken.clear();
+            if (ch == '\'') {
+                fileStream.get(ch); 
+                tokens.push_back(createToken(std::to_string(ch)));
+                fileStream.get(ch); 
                 continue;
             }
 
-            currentToken += ch;
+            if (isSymbol(ch))  {
+                if (!current.empty()) {
+                    tokens.push_back(createToken(current));
+                    current.clear();
+                }
+                tokens.push_back(createToken(std::string(1,ch)));
+                continue;
+            }
+
+            current += ch;
         }
     }
     catch (const std::exception& e) {
         std::cerr << "line: " << line << " column: " << column << 
-        "\nerror while tokenizing: " << currentToken << std::endl; 
+        "\nerror while tokenizing: " << current << std::endl; 
         exit(1);
     }
     return tokens;
@@ -103,6 +127,12 @@ Token Lexer::createToken(const std::string& str) {
     }
     else if (str == "return") {
         return Token(tokenType::RETURN, str);
+    }
+    else if (str == "if") {
+        return Token(tokenType::IF, str);
+    }
+    else if (str == "while") {
+        return Token(tokenType::WHILE, str);
     }
     else if (str == ";") {
         return Token(tokenType::SEMICOLON, str);
@@ -125,6 +155,9 @@ Token Lexer::createToken(const std::string& str) {
     else if (str == "&") {
         return Token(tokenType::ADDRESSOF, str);
     }
+    else if (str == "<" || str == ">" || str == "==" || str == "<=" || str == ">=") {
+        return Token(tokenType::COMPARISON, str);
+    }
     else if (isType(str)) {
         return Token(tokenType::TYPE, str);
     }
@@ -134,12 +167,9 @@ Token Lexer::createToken(const std::string& str) {
     return Token(tokenType::NAME, str);
 }
 
-bool Lexer::isKeyword(const std::string& token) {
-    return keywords.find(token) != keywords.end();
-}
 
-bool Lexer::isSymbol(const char& ch) {
-    return symbols.find(ch) != symbols.end();
+bool Lexer::isSymbol(const char chr) {
+    return symbols.find(chr) != symbols.end();
 }
 
 bool Lexer::isType(const std::string& token) {
@@ -148,14 +178,14 @@ bool Lexer::isType(const std::string& token) {
 
 
 bool Lexer::inString = false;
-std::unordered_map<std::string,bool> Lexer::keywords = {
-    {"return",true},
-};
 
 std::unordered_map<std::string,bool> Lexer::types = {
     {"int",true},
     {"void",true},
     {"uint64_t",true},
+    {"uint32_t",true},
+    {"uint16_t",true},
+    {"uint8_t",true},
     {"char",true}
 };
 
@@ -172,9 +202,11 @@ std::unordered_map<char,bool> Lexer::symbols = {
     {';',true},
     {'=',true},
     {'&',true},
+    {'<',true},
+    {'>',true},
 };
 
-std::unordered_map<char,char> Lexer::specialChars = {
+std::unordered_map<char,char> Lexer::escapeChars = {
     {'n','\n'}, // new line
     {'r','\r'}, // carriage return
     {'t','\t'}, // tab
