@@ -11,7 +11,6 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
     int line = 1;
     int column = 0;
     char ch;
-    char lastCh = 0;
     bool inComment = false;
     try {
         while (fileStream.get(ch)) {
@@ -22,34 +21,37 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
                 ++line;
                 column = 0;
                 currentToken.clear();
-                lastCh = 0;
                 continue;
             }
+
             if (inComment) 
                 continue;
 
-            if (lastCh == '/' && ch == '/') {
-                inComment = true;
+            if (inString && ch != '\"') {
+                if (ch == '\\') {
+                    fileStream.get(ch);
+                    if (specialChars.find(ch) != specialChars.end()) {
+                        currentToken += specialChars[ch];
+                    }
+                    else {
+                        currentToken += ch; 
+                    }
+                    continue;
+                }
+                currentToken += ch;
                 continue;
             }
 
             if (ch == '/') {
-                lastCh = ch;
-                continue;
-            }
-
-            if (lastCh == '/' && ch != '/') {
-                currentToken += "/";
-            }
-
-            if (inString && ch != '\"') {
-                if (lastCh == '\\') {
-                    if (ch == 'n') {
-                        currentToken[currentToken.size()-1] = '\n';
-                    }
+                fileStream.get(ch);
+                if (ch == '/') {
+                    inComment = true;
                     continue;
                 }
-                lastCh = ch;
+
+                tokens.push_back(createToken(currentToken));
+                currentToken.clear();
+                tokens.push_back(createToken("/"));
                 currentToken += ch;
                 continue;
             }
@@ -73,7 +75,6 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
                 continue;
             }
 
-
             if (isKeyword(currentToken) || isSymbol(ch) || isType(currentToken)) {
                 if ((isSymbol(ch)) && !currentToken.empty()) {
                     tokens.push_back(createToken(currentToken));
@@ -86,7 +87,6 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
             }
 
             currentToken += ch;
-            lastCh = ch;
         }
     }
     catch (const std::exception& e) {
@@ -172,4 +172,12 @@ std::unordered_map<char,bool> Lexer::symbols = {
     {';',true},
     {'=',true},
     {'&',true},
+};
+
+std::unordered_map<char,char> Lexer::specialChars = {
+    {'n','\n'}, // new line
+    {'r','\r'}, // carriage return
+    {'t','\t'}, // tab
+    {'v','\v'}, // vertical tab
+    {'a','\a'}, // alert
 };

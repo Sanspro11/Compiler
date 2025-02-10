@@ -11,6 +11,7 @@ class Lexer {
         static std::unordered_map<std::string,bool> keywords;
         static std::unordered_map<char,bool> symbols;
         static std::unordered_map<std::string,bool> types;
+        static std::unordered_map<char,char> specialChars;
         static bool inString;
 
         static Token createToken(const std::string& str);
