@@ -83,6 +83,7 @@ class codeGen {
         static std::unordered_map<std::string,uint8_t> typeSizes;
         static std::unordered_map<std::string,std::vector<uint8_t>> pushRegCode;
         static std::unordered_map<std::string,std::vector<uint8_t>> popRegCode;
+        static std::unordered_map<std::string,std::vector<uint8_t>> oppositeJumpType;
 
         std::unordered_map<std::string,size_t> variableToOffset;
         std::unordered_map<std::string,std::string> variableToType;
@@ -92,11 +93,13 @@ class codeGen {
         void addCode(std::vector<uint8_t>& code,const std::vector<uint8_t>& codeToAdd);
         void parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expression, std::string reg);
         void addConstantStringToRegToCode(std::vector<uint8_t>& code,const Constant* constant, const std::string& reg);
-        void addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement*& returnStatement);
-        void addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall*& functionCall);
-        void addAssignmentToCode(std::vector<uint8_t>& code,Assignment*& assignment);
+        void addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement* returnStatement);
+        void addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall* functionCall);
+        void addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignment);
         void addCodeBlockToCode(std::vector<uint8_t>& code,CodeBlock* codeBlock);
         void addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeBlock);
+        void addIfStatementToCode(std::vector<uint8_t>& code, IfStatement* ifStatement);
+        void addWhileStatementToCode(std::vector<uint8_t>& code, WhileStatement* whileStatement);
         std::vector<uint8_t> generateCodeFromFunction(Function* function);
 
 
@@ -116,8 +119,10 @@ class codeGen {
         std::vector<uint8_t> movRbpQwordOffsetRax(uint32_t offset);
         std::vector<uint8_t> leaRaxQwordRbpOffset(uint32_t offset);
         std::vector<uint8_t> subRsp(uint32_t num);
-        std::vector<uint8_t> movRegRax(std::string& reg);
+        std::vector<uint8_t> movRegRax(const std::string& reg);
         std::vector<uint8_t> addRaxRbx();
+        std::vector<uint8_t> cmpRaxRbx();
+        std::vector<uint8_t> oppositeJump(const std::string& type);
 
         // Macros
         // ELF symbol binding and type
@@ -128,7 +133,7 @@ class codeGen {
         static const unsigned char LOCAL_SYMBOL  = 0; // Local symbol
         static const unsigned char GLOBAL_SYMBOL = 1; // Global symbol
 
-        //symbols types
+        // symbols types
         static const unsigned char OBJECT_SYMBOL_TYPE = 1; // Data object
         static const unsigned char FUNCTION_SYMBOL_TYPE = 2; // Function
         static const unsigned char SECTION_SYMBOL_TYPE= 3; // Section symbol

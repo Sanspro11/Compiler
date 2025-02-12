@@ -518,12 +518,12 @@ void codeGen::addConstantStringToRegToCode(std::vector<uint8_t>& code,const Cons
     addCode(code,movabsCodeStub);
 } 
 
-void codeGen::addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement*& returnStatement) {
+void codeGen::addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement* returnStatement) {
     parseExpressionToReg(code,returnStatement->expression,"rax");
     addCode(code,leaveFunction());
 }
 
-void codeGen::addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall*& functionCall) {
+void codeGen::addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall* functionCall) {
     std::vector<ASTNode*>& args = functionCall->arguments;
 
     for (size_t i = 0; i < args.size() && i <= 5; ++i) {
@@ -541,7 +541,7 @@ void codeGen::addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall*& fu
     addCode(code,call());
 }
 
-void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment*& assignment) {
+void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignment) {
     // mov [rbp+offset], expression
     const Identifier* identifier = assignment->identifier;
     const std::string& varName = identifier->name;
@@ -568,6 +568,16 @@ void codeGen::addCodeBlockToCode(std::vector<uint8_t>& code,CodeBlock* codeBlock
             Assignment* assignment = (Assignment*)statement;
             addAssignmentToCode(code,assignment);
         }
+
+        else if (statement->type == NodeType::IfStatement) {
+            IfStatement* ifStatement = (IfStatement*)statement;
+            addIfStatementToCode(code,ifStatement);
+        }
+
+        else if (statement->type == NodeType::WhileStatement) {
+            WhileStatement* whileStatement = (WhileStatement*)statement;
+            addWhileStatementToCode(code,whileStatement);
+        }
     }
 }
 
@@ -588,6 +598,33 @@ void codeGen::addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeB
     if (varSizes > 0) {
         addCode(code,subRsp(varSizes + pad));
     }
+}
+
+void codeGen::addIfStatementToCode(std::vector<uint8_t>& code, IfStatement* ifStatement) {
+    ASTNode* expression = ifStatement->expression;
+    if (expression->type == NodeType::ComparisonExpression) {
+        ComparisonExpression* compExpr = (ComparisonExpression*)expression;
+        const std::string& op = compExpr->op;
+        parseExpressionToReg(code,compExpr->left,"rax");
+        addCode(code,pushReg("rax"));
+        parseExpressionToReg(code,compExpr->right,"rbx");
+        addCode(code,popReg("rax"));
+        addCode(code,cmpRaxRbx());
+        addCode(code,oppositeJump(op));
+    }
+    size_t jmpLocation = code.size() - 4;
+    size_t codeSizeBefore = code.size();
+    addCodeBlockToCode(code,ifStatement->codeBlock);
+    uint32_t jmpSize = code.size() - codeSizeBefore;
+    uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&jmpSize);
+    for (size_t i = 0; i < 4; ++i) {
+        code[jmpLocation] = (*(bytePtr + i));
+        ++jmpLocation;
+    }
+}
+
+void codeGen::addWhileStatementToCode(std::vector<uint8_t>& code, WhileStatement* whileStatement) {
+
 }
 
 std::vector<uint8_t> codeGen::generateCodeFromFunction(Function* function) {
@@ -634,10 +671,7 @@ std::vector<uint8_t> codeGen::exitSyscall(uint8_t num) {
 }
 
 std::vector<uint8_t> codeGen::call() {
-    std::vector<uint8_t> code = {
-        0xe8, 0x00, 0x00, 0x00, 0x00  // call 0x00000000
-    };
-    return code;
+    return {0xE8, 0x00, 0x00, 0x00, 0x00};
     // the address of the call is being relocated by .rela.text
 } // call 0x00000000
 
@@ -654,8 +688,7 @@ std::vector<uint8_t> codeGen::leaStub(const std::string& reg) {
     auto leaCode = register64BitLeaStub[reg];
     addCode(leaCode,{0x00,0x00,0x00,0x00});
     return leaCode;
-    // stub lea for relocation
-}
+} // lea reg, 0x00000000
 
 std::vector<uint8_t> codeGen::pushReg(const std::string& reg) { 
     return pushRegCode[reg];
@@ -727,13 +760,24 @@ std::vector<uint8_t> codeGen::subRsp(uint32_t num) {
     return code;
 } // sub rsp, num
 
-std::vector<uint8_t> codeGen::movRegRax(std::string& reg) { 
+std::vector<uint8_t> codeGen::movRegRax(const std::string& reg) { 
     return movRaxToReg[reg];
 } // mov reg, rax
 
 std::vector<uint8_t> codeGen::addRaxRbx() { 
     return {0x48,0x01,0xd8};
 } // add rax, rbx
+
+std::vector<uint8_t> codeGen::cmpRaxRbx() { 
+    return {0x48,0x39,0xd8};
+} // cmp rax, rbx
+
+std::vector<uint8_t> codeGen::oppositeJump(const std::string& type) { 
+    std::vector<uint8_t> jmp = oppositeJumpType[type];
+    addCode(jmp,{0x00,0x00,0x00,0x00});
+    return jmp;
+} // je/jne/ja/jb/jae/jbe 0x00000000
+
 
 std::unordered_map<uint8_t,std::string> codeGen::positionToRegister = {
     {0,"rdi"},
@@ -745,6 +789,9 @@ std::unordered_map<uint8_t,std::string> codeGen::positionToRegister = {
 };
 std::unordered_map<std::string,std::vector<uint8_t>> codeGen::register64BitMov {
     {"rax",{0x48,0xb8}},
+    {"rbx",{0x48,0xbb}},
+    {"rcx",{0x48,0xb9}},
+    {"rdx",{0x48,0xba}},
     {"rdi",{0x48,0xbf}},
     {"rsi",{0x48,0xbe}},
     {"rdx",{0x48,0xba}},
@@ -763,6 +810,9 @@ std::unordered_map<std::string,std::vector<uint8_t>> codeGen::register64BitLeaSt
 };
 
 std::unordered_map<std::string,std::vector<uint8_t>> codeGen::movRaxToReg {
+    {"rbx",{0x48,0x89,0xc3}},
+    {"rcx",{0x48,0x89,0xc1}},
+    {"rdx",{0x48,0x89,0xc2}},
     {"rdi",{0x48,0x89,0xc7}},
     {"rsi",{0x48,0x89,0xc6}},
     {"rdx",{0x48,0x89,0xc2}},
@@ -794,4 +844,14 @@ std::unordered_map<std::string,std::vector<uint8_t>> codeGen::popRegCode {
     {"rdx",{0x5a}},
     {"rbp",{0x5d}},
     {"rsp",{0x5c}}
+};
+
+std::unordered_map<std::string,std::vector<uint8_t>> codeGen::oppositeJumpType {
+    // opposite jump type for easier code logic
+    {"!=",{0x0f,0x84}}, // je
+    {"==",{0x0f,0x85}}, // jne
+    {"<=",{0x0f,0x87}}, // ja
+    {">=",{0x0f,0x82}}, // jb
+    {"<",{0x0f,0x83}},  // jae
+    {">",{0x0f,0x86}},  // jbe
 };

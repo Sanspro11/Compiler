@@ -34,7 +34,6 @@ int main(int argc, char* argv[]) {
     ProgramRoot* treeRoot = parser.parse();
     treeRoot->print();
 
-    /*
     size_t nameSize = filename.size();
     if (filename.substr(nameSize-2,nameSize-1) == ".c") {
         filename[nameSize-1] = 'o';
@@ -51,6 +50,5 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
     std::cout << "Object file " << filename << " successfully created\n";
-    */
     exit(0);
 }

@@ -48,13 +48,14 @@ ASTNode* Parser::parseStatement() {
     }
     else if (current().type == tokenType::TYPE) { // declaration
         statement = parseDeclaration();
-        advance(); // ; or type for assignment
     }
     else if (current().type == tokenType::NAME) {
         if (peekNext().type == tokenType::ASSIGNMENT) {
             statement = parseAssignment();
         }
-        statement = parseFunctionCall();
+        else {
+            statement = parseFunctionCall();
+        }
         advance(); // ;
     }
     else if (current().type == tokenType::IF){
@@ -222,6 +223,7 @@ ASTNode* Parser::parseDeclaration() {
     std::string name = current().value;
     if (peekNext().type == tokenType::SEMICOLON) { // int a;
         advance(); // varName
+        advance(); // ;
     }
     // if the next token is not a semicolon, stop at the variable name,
     // so the next parseStatement() would begin at "x = 1";
