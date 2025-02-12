@@ -16,6 +16,7 @@ enum tokenType {
     ASSIGNMENT,
     ADDRESSOF,
     IF,
+    ELSE,
     WHILE,
     COMPARISON,
     ENDOFFILE

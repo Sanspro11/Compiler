@@ -41,20 +41,30 @@ Token Parser::peekNext() {
 }
 
 ASTNode* Parser::parseStatement() {
+    ASTNode* statement = nullptr;
     if (current().type == tokenType::RETURN) {
-        return parseReturnStatement();
+        statement = parseReturnStatement();
+        advance(); // ;
     }
     else if (current().type == tokenType::TYPE) { // declaration
-        return parseDeclaration();
+        statement = parseDeclaration();
+        advance(); // ; or type for assignment
     }
     else if (current().type == tokenType::NAME) {
         if (peekNext().type == tokenType::ASSIGNMENT) {
-            return parseAssignment();
+            statement = parseAssignment();
         }
-        return parseFunctionCall();
+        statement = parseFunctionCall();
+        advance(); // ;
+    }
+    else if (current().type == tokenType::IF){
+        statement = parseIfStatement();
+    }
+    else if (current().type == tokenType::WHILE){
+        statement = parseWhileStatement();
     }
 
-    return nullptr;  
+    return statement;  
 }
 
 ASTNode* Parser::parseFunction() {
@@ -77,7 +87,6 @@ CodeBlock* Parser::parseCodeBlock() {
         advance(); // {
         while (current().type != tokenType::BRACE && current().value != "}") {
             ASTNode* statement = parseStatement();
-            advance(); // ;
             codeBlock->statements.push_back(statement);
         }
         advance(); // }
@@ -170,13 +179,15 @@ ASTNode* Parser::parseExpression() {
             advance(); // &
         }
     }
-    // token here should be ";" or "," or ")"
+    // token here should be ";" or "," or ")" or comparsion
     return expression;
 }
+
 bool Parser::shouldExpressionContinue() {
     return current().type != tokenType::SEMICOLON
     && current().type != tokenType::COMMA 
-    && !(current().type == tokenType::PARENTHESES && current().value == ")");
+    && !(current().type == tokenType::PARENTHESES && current().value == ")")
+    && current().type != tokenType::COMPARISON;
 }
 
 ReturnStatement* Parser::parseReturnStatement() {
@@ -191,7 +202,6 @@ ASTNode* Parser::parseFunctionCall() {
     std::string funcName = current().value;
     funcCall->name = funcName;
     advance(); // name
-    // parameters here
     advance(); // (
     while (current().type != tokenType::PARENTHESES && current().value != ")") {
         ASTNode* expression = parseExpression();
@@ -219,13 +229,47 @@ ASTNode* Parser::parseDeclaration() {
 }
 
 ASTNode* Parser::parseAssignment() {
-    // x = expression
     std::string name = current().value;
     Identifier* identifier = new Identifier(name);
     advance(); // varName
     advance(); // =
     ASTNode* expression = parseExpression();
     return new Assignment(identifier,expression);
+}
+
+ASTNode* Parser::parseIfStatement() {
+    advance(); // if 
+    advance(); // (
+    IfStatement* ifStatement = new IfStatement();
+    ifStatement->expression = parseComparison();
+    advance(); // )
+    ifStatement->codeBlock = parseCodeBlock();
+    if (current().type == tokenType::ELSE) {
+        advance(); // else
+        ifStatement->elseBlock = parseCodeBlock();
+    }
+    return ifStatement;
+}
+
+ASTNode* Parser::parseWhileStatement() {
+    advance(); // while
+    advance(); // (
+    WhileStatement* whileStatement = new WhileStatement();
+    whileStatement->expression = parseComparison();
+    advance(); // )
+    whileStatement->codeBlock = parseCodeBlock();
+    return whileStatement;
+}
+
+ASTNode* Parser::parseComparison() {
+    // currently supports only 2 expressions
+    ComparisonExpression* expr = new ComparisonExpression();
+    expr->left = parseExpression();
+    expr->op = current().value; // > < == >= <=
+    advance(); // compare operator
+    expr->right = parseExpression();
+    // || && checks here in the future
+    return expr;
 }
 
 long long Parser::calculateOperation(const long long& value1, const long long& value2, const std::string& operation) {

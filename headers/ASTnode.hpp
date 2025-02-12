@@ -17,7 +17,10 @@ enum class NodeType {
     VariableDeclaration,
     Identifier,
     UnaryExpression,
-    Assignment
+    Assignment,
+    ComparisonExpression,
+    IfStatement,
+    WhileStatement,
 };
 
 
@@ -32,7 +35,7 @@ struct ReturnStatement : public ASTNode {
     ASTNode* expression;  
     ReturnStatement() { type = NodeType::ReturnStatement; expression = nullptr; }
     void print() const override {
-        std::cout << "Return statement: ";
+        std::cout << "Return: ";
         if (expression != nullptr){
             expression->print();
         }
@@ -205,3 +208,54 @@ struct VariableDeclaration : public ASTNode {
     }
 };
 
+struct ComparisonExpression : public ASTNode {
+    ASTNode* left;  
+    ASTNode* right;  
+    std::string op;
+    ComparisonExpression() { type = NodeType::ComparisonExpression; left = nullptr; right = nullptr; }
+    void print() const override {
+        std::cout << "(";
+        if (left) {
+            left->print();
+        }
+        else {
+            std::cout << "NULL";
+        }
+        std::cout << " " << op << " ";
+        if (right) {
+            right->print();
+        }
+        else {
+            std::cout << "NULL";
+        }
+        std::cout << ")";
+    }
+};
+
+struct IfStatement : public ASTNode {
+    ASTNode* expression;
+    CodeBlock* codeBlock;
+    CodeBlock* elseBlock;
+    IfStatement() { type = NodeType::IfStatement; codeBlock = nullptr; elseBlock = nullptr;}
+    void print() const override {
+        std::cout << "If: ";
+        expression->print();
+        std::cout << "then: ";
+        codeBlock->print();
+        if (elseBlock) {
+            std::cout << "else: ";
+            elseBlock->print();
+        }
+    }
+};
+
+struct WhileStatement : public ASTNode {
+    ASTNode* expression;
+    CodeBlock* codeBlock;
+    WhileStatement() { type = NodeType::WhileStatement; codeBlock = nullptr;}
+    void print() const override {
+        std::cout << "While: ";
+        expression->print();
+        codeBlock->print();
+    }
+};

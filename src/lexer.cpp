@@ -56,8 +56,6 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
                 continue;
             }
 
-            // int a = 0;
-            // if (a >= a);
             if (ch == '=' || ch == '<' || ch == '>') { // 2 char symbols
                 if (!current.empty()) {
                     tokens.push_back(createToken(current));
@@ -73,6 +71,7 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
                     tokens.push_back(createToken(std::string(1,current[0])));
                 }
                 current.clear();
+                continue;
             }
 
             if (ch == '\"') {

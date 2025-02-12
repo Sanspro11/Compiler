@@ -30,11 +30,11 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "\n";
 
-    /*
     Parser parser = Parser(tokens);
     ProgramRoot* treeRoot = parser.parse();
     treeRoot->print();
 
+    /*
     size_t nameSize = filename.size();
     if (filename.substr(nameSize-2,nameSize-1) == ".c") {
         filename[nameSize-1] = 'o';
