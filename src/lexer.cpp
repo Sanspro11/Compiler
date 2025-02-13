@@ -56,7 +56,7 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
                 continue;
             }
 
-            if (ch == '=' || ch == '<' || ch == '>') { // 2 char symbols
+            if (ch == '=' || ch == '<' || ch == '>' || ch == '!') { // 2 char symbols
                 if (!current.empty()) {
                     tokens.push_back(createToken(current));
                     current.clear();
@@ -64,7 +64,7 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
                 current += ch;
                 fileStream.get(ch);
                 current += ch;
-                if (current == "==" || current == "<=" || current == ">=") {
+                if (current == "==" || current == "<=" || current == ">=" || current == "!=") {
                     tokens.push_back(createToken(current));
                 }
                 else {
@@ -154,7 +154,7 @@ Token Lexer::createToken(const std::string& str) {
     else if (str == "&") {
         return Token(tokenType::ADDRESSOF, str);
     }
-    else if (str == "<" || str == ">" || str == "==" || str == "<=" || str == ">=") {
+    else if (str == "<" || str == ">" || str == "==" || str == "<=" || str == ">=" || str == "!=") {
         return Token(tokenType::COMPARISON, str);
     }
     else if (isType(str)) {
