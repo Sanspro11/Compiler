@@ -602,29 +602,54 @@ void codeGen::addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeB
 
 void codeGen::addIfStatementToCode(std::vector<uint8_t>& code, IfStatement* ifStatement) {
     ASTNode* expression = ifStatement->expression;
+    std::string op = "jmp";
+    if (expression->type == NodeType::ComparisonExpression) {
+        op = ((ComparisonExpression*)expression)->op;
+    }
+    parseComparsionExpressionCmp(code,expression);
+    addCode(code,oppositeJump(op));
+    size_t jmpLocation = code.size() - 4;
+    size_t codeSizeBefore = code.size();
+    addCodeBlockToCode(code,ifStatement->codeBlock);
+    uint32_t jmpSize = code.size() - codeSizeBefore;
+    changeJmpOffset(code,jmpLocation,jmpSize);
+}
+
+void codeGen::parseComparsionExpressionCmp(std::vector<uint8_t>& code, ASTNode* expression) {
     if (expression->type == NodeType::ComparisonExpression) {
         ComparisonExpression* compExpr = (ComparisonExpression*)expression;
-        const std::string& op = compExpr->op;
         parseExpressionToReg(code,compExpr->left,"rax");
         addCode(code,pushReg("rax"));
         parseExpressionToReg(code,compExpr->right,"rbx");
         addCode(code,popReg("rax"));
         addCode(code,cmpRaxRbx());
-        addCode(code,oppositeJump(op));
-    }
-    size_t jmpLocation = code.size() - 4;
-    size_t codeSizeBefore = code.size();
-    addCodeBlockToCode(code,ifStatement->codeBlock);
-    uint32_t jmpSize = code.size() - codeSizeBefore;
-    uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&jmpSize);
-    for (size_t i = 0; i < 4; ++i) {
-        code[jmpLocation] = (*(bytePtr + i));
-        ++jmpLocation;
     }
 }
 
 void codeGen::addWhileStatementToCode(std::vector<uint8_t>& code, WhileStatement* whileStatement) {
-
+    /*
+    jmp cmp
+    ...
+    cmp
+    je end+1
+    */
+    ASTNode* expression = whileStatement->expression;
+    std::string op = "jmp";
+    if (expression->type == NodeType::ComparisonExpression) {
+        op = ((ComparisonExpression*)expression)->op;
+    }
+    addCode(code,jump("jmp"));
+    size_t firstJumpLocation = code.size() - 4;
+    size_t codeBlockStart = code.size();
+    addCodeBlockToCode(code,whileStatement->codeBlock);
+    size_t firstJumpOffset = code.size() - codeBlockStart;
+    parseComparsionExpressionCmp(code,expression);
+    addCode(code,jump(op));
+    size_t secondJumpLocation = code.size() - 4;
+    size_t secondJumpOffset = codeBlockStart - code.size();
+    
+    changeJmpOffset(code,firstJumpLocation,firstJumpOffset);
+    changeJmpOffset(code,secondJumpLocation,secondJumpOffset);
 }
 
 std::vector<uint8_t> codeGen::generateCodeFromFunction(Function* function) {
@@ -657,13 +682,21 @@ std::vector<uint8_t> codeGen::generateCodeFromFunction(Function* function) {
     return code;
 }
 
+void codeGen::changeJmpOffset(std::vector<uint8_t>& code, size_t codeOffset, uint32_t jmpSize) {
+    uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&jmpSize);
+    for (size_t i = 0; i < 4; ++i) {
+        code[codeOffset] = (*(bytePtr + i));
+        ++codeOffset;
+    }
+}
+
 void codeGen::addCode(std::vector<uint8_t>& code,const std::vector<uint8_t>& codeToAdd) {
     code.insert(code.end(),codeToAdd.begin(),codeToAdd.end());
 }
 
 std::vector<uint8_t> codeGen::exitSyscall(uint8_t num) {
     std::vector<uint8_t> code = {
-        0x48, 0xC7, 0xC0, 0x3C, 0x00, 0x00, 0x00, // MOV RAx, 0x3C (ExIT SYSCALL)
+        0x48, 0xC7, 0xC0, 0x3C, 0x00, 0x00, 0x00, // MOV RAX, 0x3C (EXIT SYSCALL)
         0x48, 0xC7, 0xC7, num, 0x00, 0x00, 0x00, // MOV RDI, NUM (0-255)
         0x0F, 0x05 // SYSCALL
     };
@@ -773,7 +806,14 @@ std::vector<uint8_t> codeGen::cmpRaxRbx() {
 } // cmp rax, rbx
 
 std::vector<uint8_t> codeGen::oppositeJump(const std::string& type) { 
-    std::vector<uint8_t> jmp = oppositeJumpType[type];
+    std::string oppositeOp = oppositeJumpType[type];
+    std::vector<uint8_t> jmp = jumpType[oppositeOp];
+    addCode(jmp,{0x00,0x00,0x00,0x00});
+    return jmp;
+} // je/jne/ja/jb/jae/jbe 0x00000000
+
+std::vector<uint8_t> codeGen::jump(const std::string& type) { 
+    std::vector<uint8_t> jmp = jumpType[type];
     addCode(jmp,{0x00,0x00,0x00,0x00});
     return jmp;
 } // je/jne/ja/jb/jae/jbe 0x00000000
@@ -811,8 +851,6 @@ std::unordered_map<std::string,std::vector<uint8_t>> codeGen::register64BitLeaSt
 
 std::unordered_map<std::string,std::vector<uint8_t>> codeGen::movRaxToReg {
     {"rbx",{0x48,0x89,0xc3}},
-    {"rcx",{0x48,0x89,0xc1}},
-    {"rdx",{0x48,0x89,0xc2}},
     {"rdi",{0x48,0x89,0xc7}},
     {"rsi",{0x48,0x89,0xc6}},
     {"rdx",{0x48,0x89,0xc2}},
@@ -846,12 +884,22 @@ std::unordered_map<std::string,std::vector<uint8_t>> codeGen::popRegCode {
     {"rsp",{0x5c}}
 };
 
-std::unordered_map<std::string,std::vector<uint8_t>> codeGen::oppositeJumpType {
+std::unordered_map<std::string,std::vector<uint8_t>> codeGen::jumpType {
+    {"jmp",{0xe9}},     // jmp
+    {"==",{0x0f,0x84}}, // je
+    {"!=",{0x0f,0x85}}, // jne
+    {">",{0x0f,0x87}},  // ja
+    {"<",{0x0f,0x82}},  // jb
+    {">=",{0x0f,0x83}}, // jae
+    {"<=",{0x0f,0x86}}, // jbe
+};
+
+std::unordered_map<std::string,std::string> codeGen::oppositeJumpType {
     // opposite jump type for easier code logic
-    {"!=",{0x0f,0x84}}, // je
-    {"==",{0x0f,0x85}}, // jne
-    {"<=",{0x0f,0x87}}, // ja
-    {">=",{0x0f,0x82}}, // jb
-    {"<",{0x0f,0x83}},  // jae
-    {">",{0x0f,0x86}},  // jbe
+    {"!=","=="}, 
+    {"==","!="}, 
+    {"<=",">"}, 
+    {">=","<"}, 
+    {"<",">="},  
+    {">","<="},  
 };

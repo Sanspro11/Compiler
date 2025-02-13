@@ -83,7 +83,8 @@ class codeGen {
         static std::unordered_map<std::string,uint8_t> typeSizes;
         static std::unordered_map<std::string,std::vector<uint8_t>> pushRegCode;
         static std::unordered_map<std::string,std::vector<uint8_t>> popRegCode;
-        static std::unordered_map<std::string,std::vector<uint8_t>> oppositeJumpType;
+        static std::unordered_map<std::string,std::string> oppositeJumpType;
+        static std::unordered_map<std::string,std::vector<uint8_t>> jumpType;
 
         std::unordered_map<std::string,size_t> variableToOffset;
         std::unordered_map<std::string,std::string> variableToType;
@@ -92,6 +93,7 @@ class codeGen {
         // Functions
         void addCode(std::vector<uint8_t>& code,const std::vector<uint8_t>& codeToAdd);
         void parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expression, std::string reg);
+        void parseComparsionExpressionCmp(std::vector<uint8_t>& code, ASTNode* expression);
         void addConstantStringToRegToCode(std::vector<uint8_t>& code,const Constant* constant, const std::string& reg);
         void addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement* returnStatement);
         void addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall* functionCall);
@@ -122,7 +124,10 @@ class codeGen {
         std::vector<uint8_t> movRegRax(const std::string& reg);
         std::vector<uint8_t> addRaxRbx();
         std::vector<uint8_t> cmpRaxRbx();
+        std::vector<uint8_t> jump(const std::string& type);
         std::vector<uint8_t> oppositeJump(const std::string& type);
+
+        void changeJmpOffset(std::vector<uint8_t>& code, size_t codeOffset, uint32_t jmpSize);
 
         // Macros
         // ELF symbol binding and type

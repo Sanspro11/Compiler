@@ -9,7 +9,7 @@
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
-        std::cerr << "Usage: compiler <filename>";
+        std::cerr << "Usage: compiler <filename>\n";
         exit(1);
     }
 
