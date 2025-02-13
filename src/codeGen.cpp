@@ -526,9 +526,16 @@ void codeGen::addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStateme
 void codeGen::addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall* functionCall) {
     std::vector<ASTNode*>& args = functionCall->arguments;
 
-    for (size_t i = 0; i < args.size() && i <= 5; ++i) {
+    size_t size = std::min(args.size(),(size_t)5);
+    for (size_t i = 0; i < size; ++i) {
         std::string reg = positionToRegister[i];
-        parseExpressionToReg(code,args[i],reg);
+        parseExpressionToReg(code,args[i],"rax");
+        addCode(code,pushReg("rax"));
+    }
+
+    for (size_t i = size; i > 0 ; --i) {
+        std::string reg = positionToRegister[i-1];
+        addCode(code,popReg(reg));
     }
 
     // add .rela.text entry
@@ -872,7 +879,11 @@ std::unordered_map<std::string,std::vector<uint8_t>> codeGen::pushRegCode {
     {"rcx",{0x51}},
     {"rdx",{0x52}},
     {"rbp",{0x55}},
-    {"rsp",{0x54}}
+    {"rsp",{0x54}},
+    {"rdi",{0x57}},
+    {"rsi",{0x56}},
+    {"r8",{0x41,0x50}},
+    {"r9",{0x41,0x51}},
 };
 
 std::unordered_map<std::string,std::vector<uint8_t>> codeGen::popRegCode {
@@ -881,7 +892,11 @@ std::unordered_map<std::string,std::vector<uint8_t>> codeGen::popRegCode {
     {"rcx",{0x59}},
     {"rdx",{0x5a}},
     {"rbp",{0x5d}},
-    {"rsp",{0x5c}}
+    {"rsp",{0x5c}},
+    {"rdi",{0x5f}},
+    {"rsi",{0x5e}},
+    {"r8",{0x41,0x58}},
+    {"r9",{0x41,0x59}},
 };
 
 std::unordered_map<std::string,std::vector<uint8_t>> codeGen::jumpType {
