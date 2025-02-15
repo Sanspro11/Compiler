@@ -8,8 +8,6 @@
 std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
     std::vector<Token> tokens;
     std::string current;
-    int line = 1;
-    int column = 0;
     char ch;
     bool inComment = false;
     try {
@@ -18,7 +16,7 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
 
             if (ch == '\n' || ch == '\r') { 
                 inComment = false;
-                ++line;
+                ++row;
                 column = 0;
                 current.clear();
                 continue;
@@ -113,7 +111,7 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
         }
     }
     catch (const std::exception& e) {
-        std::cerr << "line: " << line << " column: " << column << 
+        std::cerr << "line: " << row << " column: " << column << 
         "\nerror while tokenizing: " << current << std::endl; 
         exit(1);
     }
@@ -121,49 +119,50 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
 }
 
 Token Lexer::createToken(const std::string& str) {
+    size_t col = column - str.size();
     if (inString) { 
-        return Token(tokenType::STRING, str);
+        return Token(tokenType::STRING, str, row, col);
     }
     else if (str == "return") {
-        return Token(tokenType::RETURN, str);
+        return Token(tokenType::RETURN, str, row, col);
     }
     else if (str == "if") {
-        return Token(tokenType::IF, str);
+        return Token(tokenType::IF, str, row, col);
     }
     else if (str == "while") {
-        return Token(tokenType::WHILE, str);
+        return Token(tokenType::WHILE, str, row, col);
     }
     else if (str == ";") {
-        return Token(tokenType::SEMICOLON, str);
+        return Token(tokenType::SEMICOLON, str, row, col);
     }
     else if (str == "+" || str == "-" || str == "*" || str == "/") {
-        return Token(tokenType::OPERATION, str);
+        return Token(tokenType::OPERATION, str, row, col);
     }
     else if (str == "{" || str == "}") {
-        return Token(tokenType::BRACE, str);
+        return Token(tokenType::BRACE, str, row, col);
     }
     else if (str == "(" || str == ")") {
-        return Token(tokenType::PARENTHESES, str);
+        return Token(tokenType::PARENTHESES, str, row, col);
     }
     else if (str == ",") {
-        return Token(tokenType::COMMA, str);
+        return Token(tokenType::COMMA, str, row, col);
     }
     else if (str == "=") {
-        return Token(tokenType::ASSIGNMENT, str);
+        return Token(tokenType::ASSIGNMENT, str, row, col);
     }
     else if (str == "&") {
-        return Token(tokenType::ADDRESSOF, str);
+        return Token(tokenType::ADDRESSOF, str, row, col);
     }
     else if (str == "<" || str == ">" || str == "==" || str == "<=" || str == ">=" || str == "!=") {
-        return Token(tokenType::COMPARISON, str);
+        return Token(tokenType::COMPARISON, str, row, col);
     }
     else if (isType(str)) {
-        return Token(tokenType::TYPE, str);
+        return Token(tokenType::TYPE, str, row, col);
     }
     else if (std::isdigit(str[0])) { 
-        return Token(tokenType::CONSTANT, str);
+        return Token(tokenType::CONSTANT, str, row, col);
     } 
-    return Token(tokenType::NAME, str);
+    return Token(tokenType::NAME, str, row, col);
 }
 
 
@@ -177,6 +176,8 @@ bool Lexer::isType(const std::string& token) {
 
 
 bool Lexer::inString = false;
+size_t Lexer::row = 1;
+size_t Lexer::column = 0;
 
 std::unordered_map<std::string,bool> Lexer::types = {
     {"int",true},

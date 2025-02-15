@@ -15,6 +15,7 @@ class Parser {
         void advance();
         void back();
         Token peekNext();
+        void require(const tokenType type, const std::string& name);
         ASTNode* parseStatement();
         ASTNode* parseFunction();
         CodeBlock* parseCodeBlock();

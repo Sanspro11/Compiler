@@ -24,7 +24,6 @@ int main(int argc, char* argv[]) {
     fileStream.close();
     std::cout << "List of tokens:\n";
     for (size_t i = 0; i < tokens.size(); ++i) {
-        std::cout << i << ". ";
         tokens[i].print();
         std::cout << "\n";
     }

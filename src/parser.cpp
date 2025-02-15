@@ -24,7 +24,7 @@ Token Parser::current() {
     if (index < tokens.size()) {
         return tokens[index];
     }
-    return Token(tokenType::ENDOFFILE,"");
+    return Token(tokenType::ENDOFFILE,"",0,0);
 }
 
 void Parser::advance() {
@@ -37,14 +37,23 @@ Token Parser::peekNext() {
     if (index+1 < tokens.size()) {
         return tokens[index+1];
     }
-    return Token(tokenType::ENDOFFILE,"");
+    return Token(tokenType::ENDOFFILE,"",0,0);
+}
+
+void Parser::require(const tokenType type, const std::string& name) {
+    if (current().type != type) {
+        std::cerr << "Row: " << current().row << ", Column: " << current().column << "\n";
+        std::cerr << "Expected a : " << name << "\n";
+        exit(1);
+    }
+    advance();
 }
 
 ASTNode* Parser::parseStatement() {
     ASTNode* statement = nullptr;
     if (current().type == tokenType::RETURN) {
         statement = parseReturnStatement();
-        advance(); // ;
+        require(tokenType::SEMICOLON,";");
     }
     else if (current().type == tokenType::TYPE) { // declaration
         statement = parseDeclaration();
@@ -56,7 +65,7 @@ ASTNode* Parser::parseStatement() {
         else {
             statement = parseFunctionCall();
         }
-        advance(); // ;
+        require(tokenType::SEMICOLON,";");
     }
     else if (current().type == tokenType::IF){
         statement = parseIfStatement();
@@ -71,12 +80,12 @@ ASTNode* Parser::parseStatement() {
 ASTNode* Parser::parseFunction() {
     Function* function = new Function();
     function->returnType = current().value;
-    advance();
+    require(tokenType::TYPE,"type");
     function->name = current().value;
-    advance();
+    require(tokenType::NAME,"name");
     // parameters here
-    advance();
-    advance();
+    require(tokenType::PARENTHESES,"(");
+    require(tokenType::PARENTHESES,")");
     // parameters here
     function->codeBlock = parseCodeBlock();
     return function;
@@ -84,14 +93,12 @@ ASTNode* Parser::parseFunction() {
 
 CodeBlock* Parser::parseCodeBlock() {
     CodeBlock* codeBlock = new CodeBlock();
-    if (current().type == tokenType::BRACE && current().value == "{") {
-        advance(); // {
-        while (current().type != tokenType::BRACE && current().value != "}") {
-            ASTNode* statement = parseStatement();
-            codeBlock->statements.push_back(statement);
-        }
-        advance(); // }
+    require(tokenType::BRACE,"{");
+    while (current().type != tokenType::BRACE && current().value != "}") {
+        ASTNode* statement = parseStatement();
+        codeBlock->statements.push_back(statement);
     }
+    require(tokenType::BRACE,"}");
     return codeBlock;
 }
 
@@ -180,7 +187,7 @@ ASTNode* Parser::parseExpression() {
             advance(); // &
         }
     }
-    // token here should be ";" or "," or ")" or comparsion
+    // token here should be ";" or "," or ")" or comparison symbol
     return expression;
 }
 
@@ -200,10 +207,9 @@ ReturnStatement* Parser::parseReturnStatement() {
 
 ASTNode* Parser::parseFunctionCall() {
     FunctionCall* funcCall = new FunctionCall();
-    std::string funcName = current().value;
-    funcCall->name = funcName;
-    advance(); // name
-    advance(); // (
+    funcCall->name = current().value;
+    require(tokenType::NAME,"name");
+    require(tokenType::PARENTHESES,"(");
     while (current().type != tokenType::PARENTHESES && current().value != ")") {
         ASTNode* expression = parseExpression();
         funcCall->arguments.push_back(expression);
@@ -211,7 +217,7 @@ ASTNode* Parser::parseFunctionCall() {
             advance(); // ,
         }
     }
-    advance(); // )
+    require(tokenType::PARENTHESES,")");
     return funcCall;
 }
 
@@ -219,11 +225,11 @@ ASTNode* Parser::parseDeclaration() {
     // int x;
     // int x = 1;
     std::string type = current().value;
-    advance(); // type
+    require(tokenType::TYPE,"type");
     std::string name = current().value;
     if (peekNext().type == tokenType::SEMICOLON) { // int a;
         advance(); // varName
-        advance(); // ;
+        require(tokenType::SEMICOLON,";");
     }
     // if the next token is not a semicolon, stop at the variable name,
     // so the next parseStatement() would begin at "x = 1";
@@ -234,17 +240,17 @@ ASTNode* Parser::parseAssignment() {
     std::string name = current().value;
     Identifier* identifier = new Identifier(name);
     advance(); // varName
-    advance(); // =
+    require(tokenType::ASSIGNMENT,"=");
     ASTNode* expression = parseExpression();
     return new Assignment(identifier,expression);
 }
 
 ASTNode* Parser::parseIfStatement() {
     advance(); // if 
-    advance(); // (
+    require(tokenType::PARENTHESES,"(");
     IfStatement* ifStatement = new IfStatement();
     ifStatement->expression = parseComparison();
-    advance(); // )
+    require(tokenType::PARENTHESES,")");
     ifStatement->codeBlock = parseCodeBlock();
     if (current().type == tokenType::ELSE) {
         advance(); // else
@@ -255,10 +261,10 @@ ASTNode* Parser::parseIfStatement() {
 
 ASTNode* Parser::parseWhileStatement() {
     advance(); // while
-    advance(); // (
+    require(tokenType::PARENTHESES,"(");
     WhileStatement* whileStatement = new WhileStatement();
     whileStatement->expression = parseComparison();
-    advance(); // )
+    require(tokenType::PARENTHESES,")");
     whileStatement->codeBlock = parseCodeBlock();
     return whileStatement;
 }
@@ -268,7 +274,7 @@ ASTNode* Parser::parseComparison() {
     ComparisonExpression* expr = new ComparisonExpression();
     expr->left = parseExpression();
     expr->op = current().value; // > < == >= <=
-    advance(); // compare operator
+    require(tokenType::COMPARISON," comparison operator");
     expr->right = parseExpression();
     // || && checks here in the future
     return expr;

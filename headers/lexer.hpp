@@ -12,6 +12,8 @@ class Lexer {
         static std::unordered_map<std::string,bool> types;
         static std::unordered_map<char,char> escapeChars;
         static bool inString;
+        static size_t row;
+        static size_t column;
 
         static Token createToken(const std::string& str);
         static bool isSymbol(const char chr);
