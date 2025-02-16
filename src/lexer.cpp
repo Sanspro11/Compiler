@@ -123,41 +123,8 @@ Token Lexer::createToken(const std::string& str) {
     if (inString) { 
         return Token(tokenType::STRING, str, row, col);
     }
-    else if (str == "return") {
-        return Token(tokenType::RETURN, str, row, col);
-    }
-    else if (str == "if") {
-        return Token(tokenType::IF, str, row, col);
-    }
-    else if (str == "while") {
-        return Token(tokenType::WHILE, str, row, col);
-    }
-    else if (str == ";") {
-        return Token(tokenType::SEMICOLON, str, row, col);
-    }
-    else if (str == "+" || str == "-" || str == "*" || str == "/") {
-        return Token(tokenType::OPERATION, str, row, col);
-    }
-    else if (str == "{" || str == "}") {
-        return Token(tokenType::BRACE, str, row, col);
-    }
-    else if (str == "(" || str == ")") {
-        return Token(tokenType::PARENTHESES, str, row, col);
-    }
-    else if (str == ",") {
-        return Token(tokenType::COMMA, str, row, col);
-    }
-    else if (str == "=") {
-        return Token(tokenType::ASSIGNMENT, str, row, col);
-    }
-    else if (str == "&") {
-        return Token(tokenType::ADDRESSOF, str, row, col);
-    }
-    else if (str == "<" || str == ">" || str == "==" || str == "<=" || str == ">=" || str == "!=") {
-        return Token(tokenType::COMPARISON, str, row, col);
-    }
-    else if (isType(str)) {
-        return Token(tokenType::TYPE, str, row, col);
+    else if (isKeyword(str)) {
+        return Token(keywords[str], str, row, col);
     }
     else if (std::isdigit(str[0])) { 
         return Token(tokenType::CONSTANT, str, row, col);
@@ -165,29 +132,49 @@ Token Lexer::createToken(const std::string& str) {
     return Token(tokenType::NAME, str, row, col);
 }
 
-
 bool Lexer::isSymbol(const char chr) {
     return symbols.find(chr) != symbols.end();
 }
 
-bool Lexer::isType(const std::string& token) {
-    return types.find(token) != types.end();
+bool Lexer::isKeyword(const std::string& token) {
+    return keywords.find(token) != keywords.end();
 }
-
 
 bool Lexer::inString = false;
 size_t Lexer::row = 1;
 size_t Lexer::column = 0;
 
-std::unordered_map<std::string,bool> Lexer::types = {
-    {"int",true},
-    {"void",true},
-    {"uint64_t",true},
-    {"uint32_t",true},
-    {"uint16_t",true},
-    {"uint8_t",true},
-    {"char",true}
+std::unordered_map<std::string,tokenType> Lexer::keywords = {
+    {"return",tokenType::RETURN},
+    {"if",tokenType::IF},
+    {"while",tokenType::WHILE},
+    {";",tokenType::SEMICOLON},
+    {"+",tokenType::OPERATION},
+    {"-",tokenType::OPERATION},
+    {"*",tokenType::OPERATION},
+    {"/",tokenType::OPERATION},
+    {"{",tokenType::BRACE},
+    {"}",tokenType::BRACE},
+    {"(",tokenType::PARENTHESES},
+    {")",tokenType::PARENTHESES},
+    {",",tokenType::COMMA},
+    {"=",tokenType::ASSIGNMENT},
+    {"&",tokenType::ADDRESSOF},
+    {"==",tokenType::COMPARISON},
+    {"!=",tokenType::COMPARISON},
+    {">",tokenType::COMPARISON},
+    {"<",tokenType::COMPARISON},
+    {">=",tokenType::COMPARISON},
+    {"<=",tokenType::COMPARISON},
+    {"int",tokenType::TYPE},
+    {"void",tokenType::TYPE},
+    {"uint64_t",tokenType::TYPE},
+    {"uint32_t",tokenType::TYPE},
+    {"uint16_t",tokenType::TYPE},
+    {"uint8_t",tokenType::TYPE},
+    {"char",tokenType::TYPE}
 };
+
 
 std::unordered_map<char,bool> Lexer::symbols = {
     {'+',true},
