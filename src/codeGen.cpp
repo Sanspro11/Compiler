@@ -489,6 +489,15 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
         if (op == "*") {
             addCode(code,mulRbx());
         }
+        if (op == "/") {
+            addCode(code,movabs("rdx",0));
+            addCode(code,divRbx());
+        }
+        if (op == "%") {
+            addCode(code,movabs("rdx",0));
+            addCode(code,divRbx());
+            addCode(code,movRaxReg("rdx"));
+        }
         if (reg != "rax") {
             addCode(code,movRegRax(reg));
         }

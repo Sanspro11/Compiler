@@ -102,8 +102,12 @@ std::vector<uint8_t> codeGen::subRsp(uint32_t num) {
 } // sub rsp, num
 
 std::vector<uint8_t> codeGen::movRegRax(const std::string& reg) { 
-    return movRaxToReg[reg];
+    return movRegRaxMap[reg];
 } // mov reg, rax
+
+std::vector<uint8_t> codeGen::movRaxReg(const std::string& reg) { 
+    return movRaxRegMap[reg];
+} // mov rax, reg
 
 std::vector<uint8_t> codeGen::addRaxRbx() { 
     return {0x48,0x01,0xd8};
@@ -116,6 +120,10 @@ std::vector<uint8_t> codeGen::subRaxRbx() {
 std::vector<uint8_t> codeGen::mulRbx() {
     return {0x48,0xf7,0xe3};
 } // mul rbx (result in rdx:rax)
+
+std::vector<uint8_t> codeGen::divRbx() {
+    return {0x48,0xf7,0xf3};
+} // div rbx (RAX quotient, RDX remainder)
 
 std::vector<uint8_t> codeGen::cmpRaxRbx() { 
     return {0x48,0x39,0xd8};
@@ -165,7 +173,7 @@ std::unordered_map<std::string,std::vector<uint8_t>> codeGen::register64BitLeaSt
     {"r8",{0x4c,0x8d,0x04,0x25}}
 };
 
-std::unordered_map<std::string,std::vector<uint8_t>> codeGen::movRaxToReg {
+std::unordered_map<std::string,std::vector<uint8_t>> codeGen::movRegRaxMap {
     {"rbx",{0x48,0x89,0xc3}},
     {"rdi",{0x48,0x89,0xc7}},
     {"rsi",{0x48,0x89,0xc6}},
@@ -173,6 +181,10 @@ std::unordered_map<std::string,std::vector<uint8_t>> codeGen::movRaxToReg {
     {"rcx",{0x48,0x89,0xc1}},
     {"r9",{0x49,0x89,0xc1}},
     {"r8",{0x49,0x89,0xc0}}
+};
+
+std::unordered_map<std::string,std::vector<uint8_t>> codeGen::movRaxRegMap {
+    {"rdx",{0x48,0x89,0xd0}},
 };
 
 std::unordered_map<std::string,uint8_t> codeGen::typeSizes {

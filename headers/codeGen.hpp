@@ -76,18 +76,20 @@ class codeGen {
         size_t currentFunctionOffset = 0;
         size_t currentStringsOffset = 0;
 
+        std::unordered_map<std::string,size_t> variableToOffset;
+        std::unordered_map<std::string,std::string> variableToType;
+
         static std::unordered_map<uint8_t,std::string> positionToRegister;
         static std::unordered_map<std::string,std::vector<uint8_t>> register64BitMov;
         static std::unordered_map<std::string,std::vector<uint8_t>> register64BitLeaStub;
-        static std::unordered_map<std::string,std::vector<uint8_t>> movRaxToReg;
+        static std::unordered_map<std::string,std::vector<uint8_t>> movRegRaxMap;
+        static std::unordered_map<std::string,std::vector<uint8_t>> movRaxRegMap;
         static std::unordered_map<std::string,uint8_t> typeSizes;
         static std::unordered_map<std::string,std::vector<uint8_t>> pushRegCode;
         static std::unordered_map<std::string,std::vector<uint8_t>> popRegCode;
         static std::unordered_map<std::string,std::string> oppositeJumpType;
         static std::unordered_map<std::string,std::vector<uint8_t>> jumpType;
 
-        std::unordered_map<std::string,size_t> variableToOffset;
-        std::unordered_map<std::string,std::string> variableToType;
 
 
         // Functions
@@ -122,9 +124,11 @@ class codeGen {
         std::vector<uint8_t> leaRaxQwordRbpOffset(uint32_t offset);
         std::vector<uint8_t> subRsp(uint32_t num);
         std::vector<uint8_t> movRegRax(const std::string& reg);
+        std::vector<uint8_t> movRaxReg(const std::string& reg);
         std::vector<uint8_t> addRaxRbx();
         std::vector<uint8_t> subRaxRbx();
         std::vector<uint8_t> mulRbx();
+        std::vector<uint8_t> divRbx();
         std::vector<uint8_t> cmpRaxRbx();
         std::vector<uint8_t> jump(const std::string& type);
         std::vector<uint8_t> oppositeJump(const std::string& type);

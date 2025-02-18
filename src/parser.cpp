@@ -292,5 +292,8 @@ long long Parser::calculateOperation(const long long& value1, const long long& v
     
     if (operation == "/") 
         return value1 / value2;
+
+    if (operation == "%") 
+        return value1 % value2;
     return value1; // should never get to here
 }
