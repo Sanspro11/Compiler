@@ -124,6 +124,7 @@ class codeGen {
         std::vector<uint8_t> movRegRax(const std::string& reg);
         std::vector<uint8_t> addRaxRbx();
         std::vector<uint8_t> subRaxRbx();
+        std::vector<uint8_t> mulRbx();
         std::vector<uint8_t> cmpRaxRbx();
         std::vector<uint8_t> jump(const std::string& type);
         std::vector<uint8_t> oppositeJump(const std::string& type);

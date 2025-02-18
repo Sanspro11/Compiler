@@ -113,6 +113,10 @@ std::vector<uint8_t> codeGen::subRaxRbx() {
     return {0x48,0x29,0xd8};
 } // sub rax, rbx
 
+std::vector<uint8_t> codeGen::mulRbx() {
+    return {0x48,0xf7,0xe3};
+} // mul rbx (result in rdx:rax)
+
 std::vector<uint8_t> codeGen::cmpRaxRbx() { 
     return {0x48,0x39,0xd8};
 } // cmp rax, rbx

@@ -486,6 +486,9 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
         if (op == "-") {
             addCode(code,subRaxRbx());
         }
+        if (op == "*") {
+            addCode(code,mulRbx());
+        }
         if (reg != "rax") {
             addCode(code,movRegRax(reg));
         }
