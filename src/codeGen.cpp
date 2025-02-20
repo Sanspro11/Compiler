@@ -439,6 +439,7 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
         }
         return;
     }
+
     if (expression->type == NodeType::Identifier) {
         Identifier* identifier = (Identifier*)expression;
         const std::string& varName = identifier->name;
@@ -451,6 +452,37 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
                 addCode(code,movRegRax(reg));
             }
         }
+        return;
+    }
+
+    if (expression->type == NodeType::ArrayAccess) {
+        // arr[1+1];
+        ArrayAccess* arrAccess = (ArrayAccess*)expression;
+        // only identifier for now
+        Identifier* identifier = (Identifier*)arrAccess->array;
+        const std::string& varName = identifier->name;
+        const std::string& type = variableToType[varName];
+        const size_t varSize = typeSizes[type];
+        size_t varOffset = variableToOffset[varName];
+        parseExpressionToReg(code,arrAccess->index,"rax");
+        // add rax (type*index)
+        addCode(code,movabs("rbx",varSize));
+        addCode(code,mulRbx());
+        addCode(code,movRegRax("rbx"));
+        addCode(code,movRaxQwordRbpOffset(varOffset));
+        addCode(code,addRaxRbx());
+        addCode(code,movRaxQwordRax()); // dereference
+        if (reg != "rax") {
+            addCode(code,movRegRax(reg));
+        }
+    }
+    if (expression->type == NodeType::FunctionCall) {
+        FunctionCall* functionCall = (FunctionCall*)expression;
+        addFunctionCallToCode(code,functionCall); // returns in rax
+        if (reg != "rax") {
+            addCode(code,movRegRax(reg));
+        }
+        return;
     }
     if (expression->type == NodeType::UnaryExpression) {
         UnaryExpression* unaryExpr = (UnaryExpression*)expression;
@@ -463,13 +495,7 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
                 addCode(code,movRegRax(reg));
             }
         }
-    }
-    if (expression->type == NodeType::FunctionCall) {
-        FunctionCall* functionCall = (FunctionCall*)expression;
-        addFunctionCallToCode(code,functionCall); // returns in rax
-        if (reg != "rax") {
-            addCode(code,movRegRax(reg));
-        }
+        return;
     }
     if (expression->type == NodeType::BinaryExpression) {
         BinaryExpression* binExpr = (BinaryExpression*)expression;
@@ -501,6 +527,7 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
         if (reg != "rax") {
             addCode(code,movRegRax(reg));
         }
+        return;
     }
 
 }

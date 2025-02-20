@@ -132,6 +132,9 @@ class codeGen {
         std::vector<uint8_t> cmpRaxRbx();
         std::vector<uint8_t> jump(const std::string& type);
         std::vector<uint8_t> oppositeJump(const std::string& type);
+        std::vector<uint8_t> movRaxQwordRax();
+
+
 
         void changeJmpOffset(std::vector<uint8_t>& code, size_t codeOffset, uint32_t jmpSize);
 

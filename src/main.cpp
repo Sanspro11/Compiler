@@ -32,7 +32,6 @@ int main(int argc, char* argv[]) {
     Parser parser = Parser(tokens);
     ProgramRoot* treeRoot = parser.parse();
     treeRoot->print();
-    exit(0);
 
     size_t nameSize = filename.size();
     if (filename.substr(nameSize-2,nameSize-1) == ".c") {
