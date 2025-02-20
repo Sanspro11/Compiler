@@ -143,8 +143,12 @@ std::vector<uint8_t> codeGen::jump(const std::string& type) {
 } // je/jne/ja/jb/jae/jbe 0x00000000
 
 std::vector<uint8_t> codeGen::movRaxQwordRax() {
-    return {0x48,0x8b,00};
-}
+    return {0x48,0x8b,0x00};
+} // mov rax, [rax]
+
+std::vector<uint8_t> codeGen::movQwordRaxRbx() {
+    return {0x48,0x89,0x18};
+} // mov [rax], rbx
 
 std::unordered_map<uint8_t,std::string> codeGen::positionToRegister = {
     {0,"rdi"},

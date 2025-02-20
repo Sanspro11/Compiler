@@ -133,6 +133,8 @@ class codeGen {
         std::vector<uint8_t> jump(const std::string& type);
         std::vector<uint8_t> oppositeJump(const std::string& type);
         std::vector<uint8_t> movRaxQwordRax();
+        std::vector<uint8_t> movQwordRaxRbx();
+
 
 
 

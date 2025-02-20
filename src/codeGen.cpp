@@ -602,7 +602,26 @@ void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignm
         addCode(code,movToReg);
     }
     else if (identifierNode->type == NodeType::ArrayAccess) { 
-
+        // arr[1+1];
+        ArrayAccess* arrAccess = (ArrayAccess*)identifierNode;
+        // only identifier for now
+        Identifier* identifier = (Identifier*)arrAccess->array;
+        const std::string& varName = identifier->name;
+        const std::string& type = variableToType[varName];
+        const size_t varSize = typeSizes[type];
+        size_t varOffset = variableToOffset[varName];
+        parseExpressionToReg(code,arrAccess->index,"rax");
+        // add rax (type*index)
+        addCode(code,movabs("rbx",varSize));
+        addCode(code,mulRbx());
+        addCode(code,movRegRax("rbx"));
+        addCode(code,movRaxQwordRbpOffset(varOffset));
+        addCode(code,addRaxRbx());
+        addCode(code,pushReg("rax"));
+        parseExpressionToReg(code,assignment->expression,"rbx");
+        addCode(code,popReg("rax"));
+        addCode(code,movQwordRaxRbx());
+        // mov [rax], expression
     }
 }
 

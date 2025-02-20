@@ -286,7 +286,7 @@ ASTNode* Parser::parseIdentifier() {
     std::string name = current().value;
     Identifier* identifier = new Identifier(name);
     advance(); // name
-    if (current().type != tokenType::SQUARE_BRACKET) {
+    if (!(current().type == tokenType::SQUARE_BRACKET && current().value == "[")) {
         return identifier;
     }
     require(tokenType::SQUARE_BRACKET,"[");
