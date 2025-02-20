@@ -30,9 +30,11 @@ Token Parser::current() {
 void Parser::advance() {
     ++index;
 }
+
 void Parser::back() {
     --index;
 }
+
 Token Parser::peekNext() {
     if (index+1 < tokens.size()) {
         return tokens[index+1];
@@ -59,11 +61,11 @@ ASTNode* Parser::parseStatement() {
         statement = parseDeclaration();
     }
     else if (current().type == tokenType::NAME) {
-        if (peekNext().type == tokenType::ASSIGNMENT) {
-            statement = parseAssignment();
+        if (peekNext().type == tokenType::PARENTHESES && peekNext().value == "(") {
+            statement = parseFunctionCall();
         }
         else {
-            statement = parseFunctionCall();
+            statement = parseAssignment();
         }
         require(tokenType::SEMICOLON,";");
     }
@@ -93,12 +95,12 @@ ASTNode* Parser::parseFunction() {
 
 CodeBlock* Parser::parseCodeBlock() {
     CodeBlock* codeBlock = new CodeBlock();
-    require(tokenType::BRACE,"{");
-    while (current().type != tokenType::BRACE && current().value != "}") {
+    require(tokenType::CURLY_BRACKET,"{");
+    while (current().type != tokenType::CURLY_BRACKET && current().value != "}") {
         ASTNode* statement = parseStatement();
         codeBlock->statements.push_back(statement);
     }
-    require(tokenType::BRACE,"}");
+    require(tokenType::CURLY_BRACKET,"}");
     return codeBlock;
 }
 
@@ -161,18 +163,18 @@ ASTNode* Parser::parseExpression() {
             }
 
             else { // variable
+                ASTNode* identifier = parseIdentifier();
                 if (expression == nullptr) {
-                    expression = new Identifier(current().value);
+                    expression = identifier;
                 }
                 else if (expression->type == NodeType::BinaryExpression) {
                     BinaryExpression* binExpr = (BinaryExpression*)expression;
-                    binExpr->right = new Identifier(current().value);
+                    binExpr->right = identifier;
                 }
                 else if (expression->type == NodeType::UnaryExpression) {
                     UnaryExpression* unaryExpr = (UnaryExpression*)expression;
-                    unaryExpr->expression = new Identifier(current().value);
+                    unaryExpr->expression = identifier;
                 }
-                advance(); // identifier name 
             }
         }
 
@@ -187,7 +189,6 @@ ASTNode* Parser::parseExpression() {
             advance(); // &
         }
     }
-    // token here should be ";" or "," or ")" or comparison symbol
     return expression;
 }
 
@@ -195,7 +196,8 @@ bool Parser::shouldExpressionContinue() {
     return current().type != tokenType::SEMICOLON
     && current().type != tokenType::COMMA 
     && !(current().type == tokenType::PARENTHESES && current().value == ")")
-    && current().type != tokenType::COMPARISON;
+    && current().type != tokenType::COMPARISON
+    && !(current().type == tokenType::SQUARE_BRACKET && current().value == "]");
 }
 
 ReturnStatement* Parser::parseReturnStatement() {
@@ -237,9 +239,7 @@ ASTNode* Parser::parseDeclaration() {
 }
 
 ASTNode* Parser::parseAssignment() {
-    std::string name = current().value;
-    Identifier* identifier = new Identifier(name);
-    advance(); // varName
+    ASTNode* identifier = parseIdentifier();
     require(tokenType::ASSIGNMENT,"=");
     ASTNode* expression = parseExpression();
     return new Assignment(identifier,expression);
@@ -278,6 +278,21 @@ ASTNode* Parser::parseComparison() {
     expr->right = parseExpression();
     // || && checks here in the future
     return expr;
+}
+
+ASTNode* Parser::parseIdentifier() {
+    // name
+    // name[expr]
+    std::string name = current().value;
+    Identifier* identifier = new Identifier(name);
+    advance(); // name
+    if (current().type != tokenType::SQUARE_BRACKET) {
+        return identifier;
+    }
+    require(tokenType::SQUARE_BRACKET,"[");
+    ASTNode* expression = parseExpression();
+    require(tokenType::SQUARE_BRACKET,"]");
+    return new ArrayAccess(identifier,expression);
 }
 
 long long Parser::calculateOperation(const long long& value1, const long long& value2, const std::string& operation) {

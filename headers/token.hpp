@@ -7,7 +7,7 @@ enum tokenType {
     CONSTANT,
     SEMICOLON,
     OPERATION,
-    BRACE,
+    CURLY_BRACKET,
     PARENTHESES,
     TYPE,
     NAME,
@@ -19,6 +19,7 @@ enum tokenType {
     ELSE,
     WHILE,
     COMPARISON,
+    SQUARE_BRACKET,
     ENDOFFILE
 };
 

@@ -28,6 +28,7 @@ class Parser {
         ASTNode* parseIfStatement();
         ASTNode* parseWhileStatement();
         ASTNode* parseComparison();
+        ASTNode* parseIdentifier();
         long long calculateOperation(const long long& value1, const long long& value2, const std::string& operation);
 
 

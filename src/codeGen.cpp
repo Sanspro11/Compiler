@@ -565,12 +565,18 @@ void codeGen::addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall* fun
 
 void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignment) {
     // mov [rbp+offset], expression
-    const Identifier* identifier = assignment->identifier;
-    const std::string& varName = identifier->name;
-    const size_t varOffset = variableToOffset[varName];
-    parseExpressionToReg(code,assignment->expression,"rax");
-    auto movToReg = movRbpQwordOffsetRax(varOffset);
-    addCode(code,movToReg);
+    const ASTNode* identifierNode = assignment->identifier;
+    if (identifierNode->type == NodeType::Identifier) {
+        Identifier* identifier = (Identifier*)identifierNode;
+        const std::string& varName = identifier->name;
+        const size_t varOffset = variableToOffset[varName];
+        parseExpressionToReg(code,assignment->expression,"rax");
+        auto movToReg = movRbpQwordOffsetRax(varOffset);
+        addCode(code,movToReg);
+    }
+    else if (identifierNode->type == NodeType::ArrayAccess) { 
+
+    }
 }
 
 

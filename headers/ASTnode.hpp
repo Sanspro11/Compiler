@@ -21,6 +21,7 @@ enum class NodeType {
     ComparisonExpression,
     IfStatement,
     WhileStatement,
+    ArrayAccess,
 };
 
 
@@ -175,10 +176,10 @@ struct Identifier : public ASTNode {
 };
 
 struct Assignment : public ASTNode {
-    Identifier* identifier;
+    ASTNode* identifier;
     ASTNode* expression; 
 
-    Assignment(Identifier* target, ASTNode* expression)
+    Assignment(ASTNode* target, ASTNode* expression)
         : identifier(target), expression(expression)
     {
         type = NodeType::Assignment;
@@ -257,5 +258,31 @@ struct WhileStatement : public ASTNode {
         std::cout << "While: ";
         expression->print();
         codeBlock->print();
+    }
+};
+
+struct ArrayAccess : public ASTNode {
+    ASTNode* array;
+    ASTNode* index;
+    
+    ArrayAccess(ASTNode* array, ASTNode* index) 
+        : array(array), index(index) { 
+        type = NodeType::ArrayAccess; 
+    }
+    
+    void print() const override {
+        std::cout << "ArrayAccess: ";
+        if (array) {
+            array->print();
+        } else {
+            std::cout << "NULL";
+        }
+        std::cout << "[";
+        if (index) {
+            index->print();
+        } else {
+            std::cout << "NULL";
+        }
+        std::cout << "]";
     }
 };
