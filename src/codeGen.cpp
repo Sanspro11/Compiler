@@ -454,7 +454,7 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
     if (expression->type == NodeType::ArrayAccess) {
         ArrayAccess* arrAccess = (ArrayAccess*)expression;
         // only identifier for now
-        if (arrAccess->type == NodeType::Identifier) {
+        if (arrAccess->array->type == NodeType::Identifier) {
             Identifier* identifier = (Identifier*)arrAccess->array;
             const std::string& varName = identifier->name;
             const std::string& type = variableToType[varName];
