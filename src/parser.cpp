@@ -129,14 +129,6 @@ ASTNode* Parser::parseExpression() {
             advance(); // constant
         }
 
-        else if (current().type == tokenType::OPERATION) {
-            BinaryExpression* binExpr = new BinaryExpression();
-            binExpr->left = expression;
-            binExpr->op = current().value;
-            expression = binExpr;
-            advance(); // operation
-        }
-
         else if (current().type == tokenType::STRING) {
             if (expression == nullptr) {
                 expression = new Constant(current().value);
@@ -150,6 +142,20 @@ ASTNode* Parser::parseExpression() {
             }
             advance(); // string
         }
+
+        else if (current().type == tokenType::OPERATION) {
+            if (expression == nullptr) {
+                expression = new UnaryExpression(current().value);
+            }
+            else {
+                BinaryExpression* binExpr = new BinaryExpression();
+                binExpr->left = expression;
+                binExpr->op = current().value;
+                expression = binExpr;
+            }
+            advance(); // operation
+        }
+
 
         else if (current().type == tokenType::NAME) {
             if (peekNext().type == tokenType::PARENTHESES && peekNext().value == "(") { // functionCall
@@ -178,16 +184,6 @@ ASTNode* Parser::parseExpression() {
             }
         }
 
-        else if (current().type == tokenType::ADDRESSOF) {
-            if (expression == nullptr) {
-                expression = new UnaryExpression("&");
-            }
-            else if (expression->type == NodeType::BinaryExpression) {
-                BinaryExpression* binExpr = (BinaryExpression*)expression;
-                binExpr->right = new UnaryExpression("&");
-            }
-            advance(); // &
-        }
     }
     return expression;
 }

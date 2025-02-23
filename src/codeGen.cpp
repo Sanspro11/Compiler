@@ -423,16 +423,12 @@ bool codeGen::generateObjectFile(ProgramRoot* root, const std::string filename) 
     return true;
 }
 
-
-
-
 void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expression, std::string reg) {
     if (expression->type == NodeType::Constant) {
         Constant* constant = (Constant*)expression;
         if (constant->constantType == "uint64_t") {
             uint64_t value = std::stoll(constant->value);
-            auto movCode = movabs(reg,value);
-            addCode(code,movCode);
+            addCode(code,movabs(reg,value));
         }
         else if (constant->constantType == "string") {
             addConstantStringToRegToCode(code,constant,reg);
@@ -456,26 +452,28 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
     }
 
     if (expression->type == NodeType::ArrayAccess) {
-        // arr[1+1];
         ArrayAccess* arrAccess = (ArrayAccess*)expression;
         // only identifier for now
-        Identifier* identifier = (Identifier*)arrAccess->array;
-        const std::string& varName = identifier->name;
-        const std::string& type = variableToType[varName];
-        const size_t varSize = typeSizes[type];
-        size_t varOffset = variableToOffset[varName];
-        parseExpressionToReg(code,arrAccess->index,"rax");
-        // add rax (type*index)
-        addCode(code,movabs("rbx",varSize));
-        addCode(code,mulRbx());
-        addCode(code,movRegRax("rbx"));
-        addCode(code,movRaxQwordRbpOffset(varOffset));
-        addCode(code,addRaxRbx());
-        addCode(code,movRaxQwordRax()); // dereference
-        if (reg != "rax") {
-            addCode(code,movRegRax(reg));
+        if (arrAccess->type == NodeType::Identifier) {
+            Identifier* identifier = (Identifier*)arrAccess->array;
+            const std::string& varName = identifier->name;
+            const std::string& type = variableToType[varName];
+            const size_t varSize = typeSizes[type];
+            size_t varOffset = variableToOffset[varName];
+            parseExpressionToReg(code,arrAccess->index,"rax");
+            // add rax (type*index)
+            addCode(code,movabs("rbx",varSize));
+            addCode(code,mulRbx());
+            addCode(code,movRegRax("rbx"));
+            addCode(code,movRaxQwordRbpOffset(varOffset));
+            addCode(code,addRaxRbx());
+            addCode(code,movRaxQwordRax()); // dereference
+            if (reg != "rax") {
+                addCode(code,movRegRax(reg));
+            }
         }
     }
+
     if (expression->type == NodeType::FunctionCall) {
         FunctionCall* functionCall = (FunctionCall*)expression;
         addFunctionCallToCode(code,functionCall); // returns in rax
@@ -484,6 +482,7 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
         }
         return;
     }
+
     if (expression->type == NodeType::UnaryExpression) {
         UnaryExpression* unaryExpr = (UnaryExpression*)expression;
         if (unaryExpr->op == "&") {
@@ -492,8 +491,15 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
                 const std::string& varName = identifier->name;
                 size_t varOffset = variableToOffset[varName];
                 addCode(code,leaRaxQwordRbpOffset(varOffset));
-                addCode(code,movRegRax(reg));
+                if (reg != "rax") {
+                    addCode(code,movRegRax(reg));
+                }
             }
+        }
+
+        if (unaryExpr->op == "*") {
+            parseExpressionToReg(code,unaryExpr->expression,"rax");
+            addCode(code,movRaxQwordRax());
         }
         return;
     }

@@ -14,7 +14,6 @@ enum tokenType {
     COMMA,
     STRING,
     ASSIGNMENT,
-    ADDRESSOF,
     IF,
     ELSE,
     WHILE,
