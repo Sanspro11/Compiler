@@ -200,9 +200,10 @@ struct Assignment : public ASTNode {
 struct VariableDeclaration : public ASTNode {
     std::string varType;
     std::string varName;
+    bool isPointer;
 
-    VariableDeclaration(const std::string& varType, const std::string& varName)
-    : varType(varType), varName(varName) {type = NodeType::VariableDeclaration;}
+    VariableDeclaration(const std::string& varType, const std::string& varName, bool isPointer = false)
+    : varType(varType), varName(varName), isPointer(isPointer) {type = NodeType::VariableDeclaration;}
 
     void print() const override {
         std::cout << "VariableDeclaration: " << varType << " " << varName;

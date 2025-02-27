@@ -439,10 +439,8 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
     if (expression->type == NodeType::Identifier) {
         Identifier* identifier = (Identifier*)expression;
         const std::string& varName = identifier->name;
-        const std::string& type = variableToType[varName];
-        const size_t varSize = typeSizes[type];
-        size_t varOffset = variableToOffset[varName];
-        addCode(code,movRaxOffsetRbp(varOffset,varSize));
+        const Variable* var = variableNameToObject[varName];
+        addCode(code,movRaxOffsetRbp(var->offset,var->getSize()));
         if (reg != "rax") {
             addCode(code,movRegRax(reg));
         }
@@ -455,15 +453,13 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
         if (arrAccess->array->type == NodeType::Identifier) {
             Identifier* identifier = (Identifier*)arrAccess->array;
             const std::string& varName = identifier->name;
-            const std::string& type = variableToType[varName];
-            const size_t varSize = typeSizes[type];
-            size_t varOffset = variableToOffset[varName];
+            const Variable* var = variableNameToObject[varName];
             parseExpressionToReg(code,arrAccess->index,"rax");
-            // add rax (type*index)
-            addCode(code,movabs("rbx",varSize));
+            uint8_t sizeOfElement = typeSizes[var->type];
+            addCode(code,movabs("rbx",sizeOfElement));
             addCode(code,mulRbx());
             addCode(code,movRegRax("rbx"));
-            addCode(code,movRaxOffsetRbp(varOffset,8)); // pointer size is 8 bytes
+            addCode(code,movRaxOffsetRbp(var->offset,8)); // pointer size is 8 bytes
             addCode(code,addRaxRbx());
             addCode(code,movRaxQwordRax()); // dereference
             if (reg != "rax") {
@@ -487,8 +483,8 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
             if (unaryExpr->expression->type == NodeType::Identifier) {
                 Identifier* identifier = (Identifier*)unaryExpr->expression;
                 const std::string& varName = identifier->name;
-                size_t varOffset = variableToOffset[varName];
-                addCode(code,leaRaxOffsetRbp(varOffset));
+                const Variable* var = variableNameToObject[varName];
+                addCode(code,leaRaxOffsetRbp(var->offset));
                 if (reg != "rax") {
                     addCode(code,movRegRax(reg));
                 }
@@ -600,31 +596,27 @@ void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignm
     if (identifierNode->type == NodeType::Identifier) {
         Identifier* identifier = (Identifier*)identifierNode;
         const std::string& varName = identifier->name;
-        const size_t varOffset = variableToOffset[varName];
-        const std::string& type = variableToType[varName];
-        const size_t varSize = typeSizes[type];
+        const Variable* var = variableNameToObject[varName];
         parseExpressionToReg(code,assignment->expression,"rax");
-        addCode(code,movOffsetRbpRax(varOffset,varSize));
+        addCode(code,movOffsetRbpRax(var->offset,var->getSize()));
     }
     else if (identifierNode->type == NodeType::ArrayAccess) { 
         ArrayAccess* arrAccess = (ArrayAccess*)identifierNode;
         // only identifier for now
         Identifier* identifier = (Identifier*)arrAccess->array;
         const std::string& varName = identifier->name;
-        const std::string& type = variableToType[varName];
-        const size_t varSize = typeSizes[type];
-        size_t varOffset = variableToOffset[varName];
+        const Variable* var = variableNameToObject[varName];
         parseExpressionToReg(code,arrAccess->index,"rax");
-        // add rax (type*index)
-        addCode(code,movabs("rbx",varSize)); 
+        uint8_t sizeOfElement = typeSizes[var->type];
+        addCode(code,movabs("rbx",sizeOfElement)); 
         addCode(code,mulRbx());
         addCode(code,movRegRax("rbx"));
-        addCode(code,movRaxOffsetRbp(varOffset,8)); // pointer size is 8 bytes
+        addCode(code,movRaxOffsetRbp(var->offset,8)); // pointer size is 8 bytes
         addCode(code,addRaxRbx());
         addCode(code,pushReg("rax"));
         parseExpressionToReg(code,assignment->expression,"rbx");
         addCode(code,popReg("rax"));
-        addCode(code,movPtrRaxRbx(varSize));
+        addCode(code,movPtrRaxRbx(sizeOfElement));
     }
 }
 
@@ -663,11 +655,16 @@ void codeGen::addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeB
     for (const ASTNode* statement : codeBlock->statements) {
         if (statement->type == NodeType::VariableDeclaration) {
             VariableDeclaration* declaration = (VariableDeclaration*)statement;
+            bool isPointer = declaration->isPointer;
             const std::string& varType = declaration->varType;
             const std::string& varName = declaration->varName;
-            varSizes += typeSizes[varType];
-            variableToType[varName] = varType;
-            variableToOffset[varName] = varSizes;
+            if (isPointer) {
+                varSizes += 8; // pointer size is always 8 bytes;
+            }
+            else {
+                varSizes += typeSizes[varType];
+            }
+            variableNameToObject[varName] = new Variable(varSizes,varType,isPointer);
         }
     }
     size_t pad = (16 - (varSizes % 16)) % 16; // pad to 16
@@ -704,12 +701,6 @@ void codeGen::parseComparsionExpressionCmp(std::vector<uint8_t>& code, ASTNode* 
 }
 
 void codeGen::addWhileStatementToCode(std::vector<uint8_t>& code, WhileStatement* whileStatement) {
-    /*
-    jmp cmp
-    ...
-    cmp
-    je end+1
-    */
     ASTNode* expression = whileStatement->expression;
     std::string op = "jmp";
     if (expression->type == NodeType::ComparisonExpression) {
@@ -755,7 +746,7 @@ std::vector<uint8_t> codeGen::generateCodeFromFunction(Function* function) {
     localFunctions[function->name] = true;
 
     currentFunctionOffset += code.size();
-    variableToOffset.clear();
+    variableNameToObject.clear();
     return code;
 }
 

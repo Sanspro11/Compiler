@@ -59,6 +59,23 @@ class codeGen {
         bool generateObjectFile(ProgramRoot* root, const std::string filename);
 
     private:
+        struct Variable {
+            public:
+                size_t offset;
+                std::string type;
+                bool isPointer;
+
+                Variable(size_t offset, std::string type, bool isPointer = false) :
+                offset(offset), type(type), isPointer(isPointer) {};
+
+                uint8_t getSize() const {
+                    if (isPointer) {
+                        return 8;
+                    }
+                    return typeSizes[type];
+                }
+        };
+
         // Variables
         std::vector<Elf64_Rela> relaTextEntries;
         std::vector<Elf64_Rela> stringRelaEntries;
@@ -76,8 +93,7 @@ class codeGen {
         size_t currentFunctionOffset = 0;
         size_t currentStringsOffset = 0;
 
-        std::unordered_map<std::string,size_t> variableToOffset;
-        std::unordered_map<std::string,std::string> variableToType;
+        std::unordered_map<std::string,Variable*> variableNameToObject;
 
         static std::unordered_map<uint8_t,std::string> positionToRegister;
         static std::unordered_map<std::string,std::vector<uint8_t>> register64BitMov;

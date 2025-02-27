@@ -205,13 +205,13 @@ std::unordered_map<std::string,std::vector<uint8_t>> codeGen::movRaxRegMap {
 };
 
 std::unordered_map<std::string,uint8_t> codeGen::typeSizes {
-    {"int",4},
     {"uint8_t",1},
     {"uint16_t",2},
     {"uint32_t",4},
     {"uint64_t",8},
     {"char",1},
     {"short",2},
+    {"int",4},
     {"long long",8},
 };
 

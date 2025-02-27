@@ -224,6 +224,11 @@ ASTNode* Parser::parseDeclaration() {
     // int x = 1;
     std::string type = current().value;
     require(tokenType::TYPE,"type");
+    bool isPointer = false;
+    while (current().type == tokenType::OPERATION && current().value == "*") {
+        isPointer = true;
+        advance(); // *
+    }
     std::string name = current().value;
     if (peekNext().type == tokenType::SEMICOLON) { // int a;
         advance(); // varName
@@ -231,7 +236,7 @@ ASTNode* Parser::parseDeclaration() {
     }
     // if the next token is not a semicolon, stop at the variable name,
     // so the next parseStatement() would begin at "x = 1";
-    return new VariableDeclaration(type,name);
+    return new VariableDeclaration(type,name,isPointer);
 }
 
 ASTNode* Parser::parseAssignment() {
