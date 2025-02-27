@@ -17,16 +17,13 @@ std::vector<uint8_t> codeGen::call() {
 } // call 0x00000000
 
 std::vector<uint8_t> codeGen::movabs(const std::string& reg, uint64_t num) {
-    auto movCode = register64BitMov[reg];
-    uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&num);
-    for (size_t i = 0; i < 8; ++i) {
-        movCode.push_back(*(bytePtr + i));
-    }
-    return movCode;
+    std::vector<uint8_t> code = register64BitMov[reg];
+    addNumToCode(code, num, 8);
+    return code;
 } // movabs reg, num
 
 std::vector<uint8_t> codeGen::leaStub(const std::string& reg) { 
-    auto leaCode = register64BitLeaStub[reg];
+    std::vector<uint8_t> leaCode = register64BitLeaStub[reg];
     addCode(leaCode,{0x00,0x00,0x00,0x00});
     return leaCode;
 } // lea reg, 0x00000000
@@ -61,43 +58,42 @@ std::vector<uint8_t> codeGen::movRspRbp() {
     return {0x48,0x89,0xE5};
 } // mov rbp, rsp
 
-std::vector<uint8_t> codeGen::movRaxQwordRbpOffset(uint32_t offset) { 
-    std::vector<uint8_t> code = {0x48,0x8b,0x85};
+std::vector<uint8_t> codeGen::movRaxOffsetRbp(uint32_t offset, uint8_t size) { 
+    std::vector<uint8_t> code = {0x48,0x8b,0x85}; // mov rax, qword ptr [rbp-offset]
+    if (size == 4)
+        code = {0x8b,0x85}; // mov eax, dword ptr [rbp-offset]
+    if (size == 2)
+        code = {0x66,0x8b,0x85}; // mov ax, word ptr [rbp-offset]
+    if (size == 1)
+        code = {0x8a,0x85}; // mov al, byte ptr [rbp-offset]
     offset = ~offset + 1;
-    uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&offset);
-    for (size_t i = 0; i < 4; ++i) {
-        code.push_back(*(bytePtr + i));
-    }
+    addNumToCode(code,offset,4);
     return code;
-} // mov rax, [rbp-0xOFFSET]
+} // mov rax/eax/ax/al, qword/dword/word/byte ptr [rbp-0xOFFSET]
 
-
-std::vector<uint8_t> codeGen::movRbpQwordOffsetRax(uint32_t offset) { 
-    std::vector<uint8_t> code = {0x48,0x89,0x85};
+std::vector<uint8_t> codeGen::movOffsetRbpRax(uint32_t offset, uint8_t size) { 
+    std::vector<uint8_t> code = {0x48,0x89,0x85}; // mov qword ptr [rbp-offset], rax
+    if (size == 4)
+        code = {0x89,0x85}; // mov dword ptr [rbp-offset], eax
+    if (size == 2)
+        code = {0x66,0x89,0x85}; // mov word ptr [rbp-offset], ax
+    if (size == 1)
+        code = {0x88,0x85}; // mov byte ptr [rbp-offset], al
     offset = ~offset + 1;
-    uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&offset);
-    for (size_t i = 0; i < 4; ++i) {
-        code.push_back(*(bytePtr + i));
-    }
+    addNumToCode(code,offset,4);
     return code;
-} // mov [rbp-0xOFFSET], rax
+} // mov Qword/Dword/Word/Byte ptr [rbp-0xOFFSET], Rax/Eax/Ax/Al
 
-std::vector<uint8_t> codeGen::leaRaxQwordRbpOffset(uint32_t offset) { 
+std::vector<uint8_t> codeGen::leaRaxOffsetRbp(uint32_t offset) { 
     std::vector<uint8_t> code = {0x48,0x8d,0x85};
     offset = ~offset + 1;
-    uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&offset);
-    for (size_t i = 0; i < 4; ++i) {
-        code.push_back(*(bytePtr + i));
-    }
+    addNumToCode(code,offset,4);
     return code;
 } // lea rax, [rbp-0xOFFSET]
 
 std::vector<uint8_t> codeGen::subRsp(uint32_t num) { 
     std::vector<uint8_t> code = {0x48,0x81,0xEC};
-    uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&num);
-    for (size_t i = 0; i < 4; ++i) {
-        code.push_back(*(bytePtr + i));
-    }
+    addNumToCode(code,num,4);
     return code;
 } // sub rsp, num
 
@@ -146,9 +142,22 @@ std::vector<uint8_t> codeGen::movRaxQwordRax() {
     return {0x48,0x8b,0x00};
 } // mov rax, [rax]
 
-std::vector<uint8_t> codeGen::movQwordRaxRbx() {
-    return {0x48,0x89,0x18};
-} // mov [rax], rbx
+std::vector<uint8_t> codeGen::movPtrRaxRbx(uint8_t size) {
+    if (size == 8)
+        return {0x48,0x89,0x18}; // mov [rax], Rbx
+    if (size == 4)
+        return {0x89,0x18}; // mov [rax], Ebx
+    if (size == 2)
+        return {0x66,0x89,0x18}; // mov [rax], Bx
+    return {0x88,0x18}; // mov [rax], bl
+} // mov Qword/Dword/Word/Byte ptr [rax], Rbx/Ebx/Bx/Bl
+
+void codeGen::addNumToCode(std::vector<uint8_t>& code, uint64_t num, uint8_t size) {
+    uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&num);
+    for (size_t i = 0; i < size; ++i) {
+        code.push_back(*(bytePtr + i));
+    }
+}
 
 std::unordered_map<uint8_t,std::string> codeGen::positionToRegister = {
     {0,"rdi"},
@@ -158,6 +167,7 @@ std::unordered_map<uint8_t,std::string> codeGen::positionToRegister = {
     {4,"r8"},
     {5,"r9"}
 };
+
 std::unordered_map<std::string,std::vector<uint8_t>> codeGen::register64BitMov {
     {"rax",{0x48,0xb8}},
     {"rbx",{0x48,0xbb}},
@@ -199,8 +209,12 @@ std::unordered_map<std::string,uint8_t> codeGen::typeSizes {
     {"uint8_t",1},
     {"uint16_t",2},
     {"uint32_t",4},
-    {"uint64_t",8}
+    {"uint64_t",8},
+    {"char",1},
+    {"short",2},
+    {"long long",8},
 };
+
 std::unordered_map<std::string,std::vector<uint8_t>> codeGen::pushRegCode {
     {"rax",{0x50}},
     {"rbx",{0x53}},
@@ -238,7 +252,6 @@ std::unordered_map<std::string,std::vector<uint8_t>> codeGen::jumpType {
 };
 
 std::unordered_map<std::string,std::string> codeGen::oppositeJumpType {
-    // opposite jump type for easier code logic
     {"!=","=="}, 
     {"==","!="}, 
     {"<=",">"}, 

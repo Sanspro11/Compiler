@@ -93,14 +93,14 @@ class codeGen {
 
 
         // Functions
-        void addCode(std::vector<uint8_t>& code,const std::vector<uint8_t>& codeToAdd);
+        void addCode(std::vector<uint8_t>& code, const std::vector<uint8_t>& codeToAdd);
         void parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expression, std::string reg);
         void parseComparsionExpressionCmp(std::vector<uint8_t>& code, ASTNode* expression);
-        void addConstantStringToRegToCode(std::vector<uint8_t>& code,const Constant* constant, const std::string& reg);
-        void addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement* returnStatement);
-        void addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall* functionCall);
-        void addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignment);
-        void addCodeBlockToCode(std::vector<uint8_t>& code,CodeBlock* codeBlock);
+        void addConstantStringToRegToCode(std::vector<uint8_t>& code, const Constant* constant, const std::string& reg);
+        void addReturnStatementToCode(std::vector<uint8_t>& code, ReturnStatement* returnStatement);
+        void addFunctionCallToCode(std::vector<uint8_t>& code, FunctionCall* functionCall);
+        void addAssignmentToCode(std::vector<uint8_t>& code, Assignment* assignment);
+        void addCodeBlockToCode(std::vector<uint8_t>& code, CodeBlock* codeBlock);
         void addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeBlock);
         void addIfStatementToCode(std::vector<uint8_t>& code, IfStatement* ifStatement);
         void addWhileStatementToCode(std::vector<uint8_t>& code, WhileStatement* whileStatement);
@@ -119,9 +119,9 @@ class codeGen {
         std::vector<uint8_t> startFunction();
         std::vector<uint8_t> ret();
         std::vector<uint8_t> movRspRbp();
-        std::vector<uint8_t> movRaxQwordRbpOffset(uint32_t offset);
-        std::vector<uint8_t> movRbpQwordOffsetRax(uint32_t offset);
-        std::vector<uint8_t> leaRaxQwordRbpOffset(uint32_t offset);
+        std::vector<uint8_t> movRaxOffsetRbp(uint32_t offset, uint8_t size);
+        std::vector<uint8_t> movOffsetRbpRax(uint32_t offset, uint8_t size);
+        std::vector<uint8_t> leaRaxOffsetRbp(uint32_t offset);
         std::vector<uint8_t> subRsp(uint32_t num);
         std::vector<uint8_t> movRegRax(const std::string& reg);
         std::vector<uint8_t> movRaxReg(const std::string& reg);
@@ -133,11 +133,10 @@ class codeGen {
         std::vector<uint8_t> jump(const std::string& type);
         std::vector<uint8_t> oppositeJump(const std::string& type);
         std::vector<uint8_t> movRaxQwordRax();
-        std::vector<uint8_t> movQwordRaxRbx();
+        std::vector<uint8_t> movPtrRaxRbx(uint8_t size);
 
 
-
-
+        void addNumToCode(std::vector<uint8_t>& code, uint64_t num, uint8_t size);
         void changeJmpOffset(std::vector<uint8_t>& code, size_t codeOffset, uint32_t jmpSize);
 
         // Macros

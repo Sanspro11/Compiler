@@ -442,11 +442,9 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
         const std::string& type = variableToType[varName];
         const size_t varSize = typeSizes[type];
         size_t varOffset = variableToOffset[varName];
-        if (type == "uint64_t" || type == "uint32_t"|| type == "uint16_t"|| type == "uint8_t"|| type == "int") {
-            addCode(code,movRaxQwordRbpOffset(varOffset));
-            if (reg != "rax") {
-                addCode(code,movRegRax(reg));
-            }
+        addCode(code,movRaxOffsetRbp(varOffset,varSize));
+        if (reg != "rax") {
+            addCode(code,movRegRax(reg));
         }
         return;
     }
@@ -465,7 +463,7 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
             addCode(code,movabs("rbx",varSize));
             addCode(code,mulRbx());
             addCode(code,movRegRax("rbx"));
-            addCode(code,movRaxQwordRbpOffset(varOffset));
+            addCode(code,movRaxOffsetRbp(varOffset,8)); // pointer size is 8 bytes
             addCode(code,addRaxRbx());
             addCode(code,movRaxQwordRax()); // dereference
             if (reg != "rax") {
@@ -490,7 +488,7 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
                 Identifier* identifier = (Identifier*)unaryExpr->expression;
                 const std::string& varName = identifier->name;
                 size_t varOffset = variableToOffset[varName];
-                addCode(code,leaRaxQwordRbpOffset(varOffset));
+                addCode(code,leaRaxOffsetRbp(varOffset));
                 if (reg != "rax") {
                     addCode(code,movRegRax(reg));
                 }
@@ -603,12 +601,12 @@ void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignm
         Identifier* identifier = (Identifier*)identifierNode;
         const std::string& varName = identifier->name;
         const size_t varOffset = variableToOffset[varName];
+        const std::string& type = variableToType[varName];
+        const size_t varSize = typeSizes[type];
         parseExpressionToReg(code,assignment->expression,"rax");
-        auto movToReg = movRbpQwordOffsetRax(varOffset);
-        addCode(code,movToReg);
+        addCode(code,movOffsetRbpRax(varOffset,varSize));
     }
     else if (identifierNode->type == NodeType::ArrayAccess) { 
-        // arr[1+1];
         ArrayAccess* arrAccess = (ArrayAccess*)identifierNode;
         // only identifier for now
         Identifier* identifier = (Identifier*)arrAccess->array;
@@ -618,16 +616,15 @@ void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignm
         size_t varOffset = variableToOffset[varName];
         parseExpressionToReg(code,arrAccess->index,"rax");
         // add rax (type*index)
-        addCode(code,movabs("rbx",varSize));
+        addCode(code,movabs("rbx",varSize)); 
         addCode(code,mulRbx());
         addCode(code,movRegRax("rbx"));
-        addCode(code,movRaxQwordRbpOffset(varOffset));
+        addCode(code,movRaxOffsetRbp(varOffset,8)); // pointer size is 8 bytes
         addCode(code,addRaxRbx());
         addCode(code,pushReg("rax"));
         parseExpressionToReg(code,assignment->expression,"rbx");
         addCode(code,popReg("rax"));
-        addCode(code,movQwordRaxRbx());
-        // mov [rax], expression
+        addCode(code,movPtrRaxRbx(varSize));
     }
 }
 
