@@ -222,9 +222,13 @@ ASTNode* Parser::parseFunctionCall() {
 ASTNode* Parser::parseDeclaration() {
     // int x;
     // int x = 1;
+    // int* x = malloc(1024);
+    // int x[100];
     std::string type = current().value;
     require(tokenType::TYPE,"type");
     bool isPointer = false;
+    bool isLocalArray = false;
+    size_t localArrSize = 0;
     while (current().type == tokenType::OPERATION && current().value == "*") {
         isPointer = true;
         advance(); // *
@@ -234,9 +238,24 @@ ASTNode* Parser::parseDeclaration() {
         advance(); // varName
         require(tokenType::SEMICOLON,";");
     }
+    if (peekNext().type == tokenType::SQUARE_BRACKET && peekNext().value == "[") {
+        advance(); // varName
+        advance(); // [
+        if (current().type != tokenType::CONSTANT) {
+            std::cerr << current().row << ":" << current().column;
+            std::cerr << " Local array size must be a constant\n";
+            exit(1);
+        }
+        Constant* node = (Constant*)parseExpression();
+        localArrSize = std::stoull(node->value);
+        isLocalArray = true;
+        require(tokenType::SQUARE_BRACKET,"]");
+        require(tokenType::SEMICOLON,";");
+        // currently only supports declaration for local arrays
+    }
     // if the next token is not a semicolon, stop at the variable name,
     // so the next parseStatement() would begin at "x = 1";
-    return new VariableDeclaration(type,name,isPointer);
+    return new VariableDeclaration(type,name,isPointer,isLocalArray,localArrSize);
 }
 
 ASTNode* Parser::parseAssignment() {
