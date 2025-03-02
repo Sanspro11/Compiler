@@ -132,18 +132,6 @@ struct ProgramRoot : public ASTNode {
     }
 };
 
-struct Function : public ASTNode {
-    CodeBlock* codeBlock;
-    std::string returnType;
-    std::string name;
-    std::vector<std::string> parameters;
-    Function() { type = NodeType::Function; }
-    void print() const override {
-        std::cout << "Function: " << name << ", ";
-        std::cout << "Return type: " << returnType << ",\n";
-        codeBlock->print();
-    }
-};
 
 struct FunctionCall : public ASTNode {
     std::string name;
@@ -216,6 +204,26 @@ struct VariableDeclaration : public ASTNode {
         std::cout << " " << varName;
         if (isLocalArray)
             std::cout << "[" << localArrSize << "]";
+    }
+};
+
+struct Function : public ASTNode {
+    CodeBlock* codeBlock;
+    std::string returnType;
+    std::string name;
+    std::vector<ASTNode*> parameters;
+    Function() { type = NodeType::Function;}
+    void print() const override {
+        std::cout << "Function: " << name << ", ";
+        std::cout << "Return type: " << returnType << ",\n";
+        if (!parameters.empty()) {
+            std::cout << "with parameters: ";
+            for (const ASTNode* d : parameters) {
+                d->print();
+                std::cout << ", ";
+            }
+        }
+        codeBlock->print();
     }
 };
 

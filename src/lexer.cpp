@@ -22,6 +22,12 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
                 continue;
             }
 
+            if (ch == '\t') { 
+                row += 4;
+                current.clear();
+                continue;
+            }
+
             if (inComment) 
                 continue;
 

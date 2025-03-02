@@ -119,9 +119,10 @@ class codeGen {
         void addFunctionCallToCode(std::vector<uint8_t>& code, FunctionCall* functionCall);
         void addAssignmentToCode(std::vector<uint8_t>& code, Assignment* assignment);
         void addCodeBlockToCode(std::vector<uint8_t>& code, CodeBlock* codeBlock);
-        void addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeBlock);
+        void addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeBlock, std::vector<ASTNode*>& parameters);
         void addIfStatementToCode(std::vector<uint8_t>& code, IfStatement* ifStatement);
         void addWhileStatementToCode(std::vector<uint8_t>& code, WhileStatement* whileStatement);
+        size_t addDeclarations(const std::vector<ASTNode*>& parameters, size_t varSizes);
         std::vector<uint8_t> generateCodeFromFunction(Function* function);
 
 

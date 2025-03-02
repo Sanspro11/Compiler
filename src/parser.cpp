@@ -87,6 +87,10 @@ ASTNode* Parser::parseFunction() {
     require(tokenType::NAME,"name");
     // parameters here
     require(tokenType::PARENTHESES,"(");
+    while (current().type != tokenType::PARENTHESES && current().value != ")") {
+        ASTNode* d = (ASTNode*)parseDeclaration();
+        function->parameters.push_back(d);
+    }
     require(tokenType::PARENTHESES,")");
     // parameters here
     function->codeBlock = parseCodeBlock();
@@ -234,24 +238,42 @@ ASTNode* Parser::parseDeclaration() {
         advance(); // *
     }
     std::string name = current().value;
-    if (peekNext().type == tokenType::SEMICOLON) { // int a;
+    if (peekNext().type == tokenType::SEMICOLON || peekNext().type == tokenType::COMMA // int a; int a,
+    || peekNext().type == tokenType::PARENTHESES && peekNext().value == ")") { // int a)
         advance(); // varName
-        require(tokenType::SEMICOLON,";");
+        if (!(current().type == tokenType::PARENTHESES && current().value == ")")) {
+            advance(); // ; or , 
+        }
     }
-    if (peekNext().type == tokenType::SQUARE_BRACKET && peekNext().value == "[") {
+    else if (peekNext().type == tokenType::SQUARE_BRACKET && peekNext().value == "[") {
         advance(); // varName
         advance(); // [
-        if (current().type != tokenType::CONSTANT) {
-            std::cerr << current().row << ":" << current().column;
-            std::cerr << " Local array size must be a constant\n";
-            exit(1);
-        }
-        Constant* node = (Constant*)parseExpression();
-        localArrSize = std::stoull(node->value);
         isLocalArray = true;
-        require(tokenType::SQUARE_BRACKET,"]");
-        require(tokenType::SEMICOLON,";");
-        // currently only supports declaration for local arrays
+        if (current().type == tokenType::SQUARE_BRACKET && current().value == "]" ) { // in function parameter
+            // int a[],
+            advance(); // ]
+            if (current().type == tokenType::COMMA)  {
+                advance(); // ,
+            }
+            else if (current().type == tokenType::PARENTHESES) {
+                // no advance
+            }
+            else {
+                require(tokenType::COMMA,", or )");
+            }
+        }
+        else {
+            if (current().type != tokenType::CONSTANT) {
+                std::cerr << current().row << ":" << current().column;
+                std::cerr << " Local array size must be a constant\n";
+                exit(1);
+            }
+            Constant* node = (Constant*)parseExpression();
+            localArrSize = std::stoull(node->value);
+            require(tokenType::SQUARE_BRACKET,"]");
+            require(tokenType::SEMICOLON,";");
+            // currently only supports declaration for local arrays
+        }
     }
     // if the next token is not a semicolon, stop at the variable name,
     // so the next parseStatement() would begin at "x = 1";

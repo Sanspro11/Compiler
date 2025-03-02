@@ -201,6 +201,12 @@ std::unordered_map<std::string,std::vector<uint8_t>> codeGen::movRegRaxMap {
 };
 
 std::unordered_map<std::string,std::vector<uint8_t>> codeGen::movRaxRegMap {
+    {"rdi", {0x48,0x89,0xf8}},  
+    {"rsi", {0x48,0x89,0xf0}},  
+    {"rdx", {0x48,0x89,0xd0}},  
+    {"rcx", {0x48,0x89,0xc8}},  
+    {"r8", {0x4c,0x89,0xc0}},  
+    {"r9", {0x4c,0x89,0xc8}},  
     {"rdx",{0x48,0x89,0xd0}},
 };
 

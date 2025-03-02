@@ -658,9 +658,8 @@ void codeGen::addCodeBlockToCode(std::vector<uint8_t>& code,CodeBlock* codeBlock
     }
 }
 
-void codeGen::addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeBlock) {
-    size_t varSizes = 0;
-    for (const ASTNode* statement : codeBlock->statements) {
+size_t codeGen::addDeclarations(const std::vector<ASTNode*>& parameters, size_t varSizes = 0) {
+    for (const ASTNode* statement : parameters) {
         if (statement->type == NodeType::VariableDeclaration) {
             VariableDeclaration* d = (VariableDeclaration*)statement;
             if (d->isPointer) {
@@ -675,10 +674,23 @@ void codeGen::addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeB
             variableNameToObject[d->varName] = new Variable(varSizes,d->varType,d->isPointer,d->isLocalArray,d->localArrSize);
         }
     }
+    return varSizes;
+}
+
+void codeGen::addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeBlock, std::vector<ASTNode*>& parameters) {
+    size_t varSizes = addDeclarations(parameters);
+    varSizes = addDeclarations(codeBlock->statements,varSizes);
     size_t pad = (16 - (varSizes % 16)) % 16; // pad to 16
     addCode(code,startFunction());
     if (varSizes > 0) {
         addCode(code,subRsp(varSizes + pad));
+    }
+    for (size_t i = 0; i < parameters.size(); ++i) {
+        const std::string& varName = ((VariableDeclaration*)parameters[i])->varName;
+        Variable* var = variableNameToObject[varName];
+        const std::string& reg = positionToRegister[i];
+        addCode(code,movRaxReg(reg));
+        addCode(code,movOffsetRbpRax(var->offset,var->getSize()));
     }
 }
 
@@ -731,7 +743,8 @@ void codeGen::addWhileStatementToCode(std::vector<uint8_t>& code, WhileStatement
 std::vector<uint8_t> codeGen::generateCodeFromFunction(Function* function) {
     std::vector<uint8_t> code;
     CodeBlock* codeBlock = function->codeBlock;
-    addDeclarationsToCode(code,codeBlock);
+    std::vector<ASTNode*>& params = function->parameters;
+    addDeclarationsToCode(code,codeBlock,params);
 
     addCodeBlockToCode(code,codeBlock);
 
