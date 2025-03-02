@@ -438,8 +438,7 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
 
     if (expression->type == NodeType::Identifier) {
         Identifier* identifier = (Identifier*)expression;
-        const std::string& varName = identifier->name;
-        const Variable* var = variableNameToObject[varName];
+        const Variable* var = variableNameToObject[identifier->name];
         if (var->isLocalArr) {
             addCode(code,leaRaxOffsetRbp(var->offset));
         }
@@ -457,12 +456,9 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
         // only identifier for now
         if (arrAccess->array->type == NodeType::Identifier) {
             Identifier* identifier = (Identifier*)arrAccess->array;
-            const std::string& varName = identifier->name;
-            const Variable* var = variableNameToObject[varName];
-
+            const Variable* var = variableNameToObject[identifier->name];
             parseExpressionToReg(code,arrAccess->index,"rax");
-            uint8_t sizeOfElement = typeSizes[var->type];
-            addCode(code,movabs("rbx",sizeOfElement));
+            addCode(code,movabs("rbx",var->getElementSize()));
             addCode(code,mulRbx());
             addCode(code,movRegRax("rbx"));
             parseExpressionToReg(code,identifier,"rax");
@@ -488,8 +484,7 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
         if (unaryExpr->op == "&") {
             if (unaryExpr->expression->type == NodeType::Identifier) {
                 Identifier* identifier = (Identifier*)unaryExpr->expression;
-                const std::string& varName = identifier->name;
-                const Variable* var = variableNameToObject[varName];
+                const Variable* var = variableNameToObject[identifier->name];
                 addCode(code,leaRaxOffsetRbp(var->offset));
                 if (reg != "rax") {
                     addCode(code,movRegRax(reg));
@@ -601,8 +596,7 @@ void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignm
     const ASTNode* identifierNode = assignment->identifier;
     if (identifierNode->type == NodeType::Identifier) {
         Identifier* identifier = (Identifier*)identifierNode;
-        const std::string& varName = identifier->name;
-        const Variable* var = variableNameToObject[varName];
+        const Variable* var = variableNameToObject[identifier->name];
         parseExpressionToReg(code,assignment->expression,"rax");
         addCode(code,movOffsetRbpRax(var->offset,var->getSize()));
     }
@@ -611,10 +605,9 @@ void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignm
         // only identifier for now
         if (arrAccess->array->type == NodeType::Identifier) {
             Identifier* identifier = (Identifier*)arrAccess->array;
-            const std::string& varName = identifier->name;
-            const Variable* var = variableNameToObject[varName];
+            const Variable* var = variableNameToObject[identifier->name];
             parseExpressionToReg(code,arrAccess->index,"rax");
-            uint8_t sizeOfElement = typeSizes[var->type];
+            uint8_t sizeOfElement = var->getElementSize();
             addCode(code,movabs("rbx",sizeOfElement)); 
             addCode(code,mulRbx());
             addCode(code,movRegRax("rbx"));
@@ -662,7 +655,7 @@ size_t codeGen::addDeclarations(const std::vector<ASTNode*>& parameters, size_t 
     for (const ASTNode* statement : parameters) {
         if (statement->type == NodeType::VariableDeclaration) {
             VariableDeclaration* d = (VariableDeclaration*)statement;
-            if (d->isPointer) {
+            if (d->pointerCount > 0) {
                 varSizes += 8; // pointer size is always 8 bytes;
             }
             else if (d->isLocalArray) {
@@ -671,7 +664,7 @@ size_t codeGen::addDeclarations(const std::vector<ASTNode*>& parameters, size_t 
             else {
                 varSizes += typeSizes[d->varType];
             }
-            variableNameToObject[d->varName] = new Variable(varSizes,d->varType,d->isPointer,d->isLocalArray,d->localArrSize);
+            variableNameToObject[d->varName] = new Variable(varSizes,d->varType,d->pointerCount,d->isLocalArray,d->localArrSize);
         }
     }
     return varSizes;

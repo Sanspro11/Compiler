@@ -51,6 +51,12 @@ void Parser::require(const tokenType type, const std::string& name) {
     advance();
 }
 
+void Parser::parserError(const std::string& error) {
+    std::cerr << current().row << ':' << current().column;
+    std::cerr << ' ' << error << '\n';
+    exit(1);
+}
+
 ASTNode* Parser::parseStatement() {
     ASTNode* statement = nullptr;
     if (current().type == tokenType::RETURN) {
@@ -88,7 +94,11 @@ ASTNode* Parser::parseFunction() {
     // parameters here
     require(tokenType::PARENTHESES,"(");
     while (current().type != tokenType::PARENTHESES && current().value != ")") {
-        ASTNode* d = (ASTNode*)parseDeclaration();
+        VariableDeclaration* d = (VariableDeclaration*)parseDeclaration();
+        if (d->isLocalArray) { // decay "char* var[]" to "char** var"
+            d->isLocalArray = false;
+            ++d->pointerCount;
+        }
         function->parameters.push_back(d);
     }
     require(tokenType::PARENTHESES,")");
@@ -230,11 +240,11 @@ ASTNode* Parser::parseDeclaration() {
     // int x[100];
     std::string type = current().value;
     require(tokenType::TYPE,"type");
-    bool isPointer = false;
+    size_t pointerCount = 0;
     bool isLocalArray = false;
     size_t localArrSize = 0;
     while (current().type == tokenType::OPERATION && current().value == "*") {
-        isPointer = true;
+        ++pointerCount;
         advance(); // *
     }
     std::string name = current().value;
@@ -264,9 +274,7 @@ ASTNode* Parser::parseDeclaration() {
         }
         else {
             if (current().type != tokenType::CONSTANT) {
-                std::cerr << current().row << ":" << current().column;
-                std::cerr << " Local array size must be a constant\n";
-                exit(1);
+                parserError("Local array size must be a constant");
             }
             Constant* node = (Constant*)parseExpression();
             localArrSize = std::stoull(node->value);
@@ -277,7 +285,7 @@ ASTNode* Parser::parseDeclaration() {
     }
     // if the next token is not a semicolon, stop at the variable name,
     // so the next parseStatement() would begin at "x = 1";
-    return new VariableDeclaration(type,name,isPointer,isLocalArray,localArrSize);
+    return new VariableDeclaration(type,name,pointerCount,isLocalArray,localArrSize);
 }
 
 ASTNode* Parser::parseAssignment() {

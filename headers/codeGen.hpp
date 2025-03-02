@@ -63,15 +63,22 @@ class codeGen {
             public:
                 size_t offset;
                 std::string type;
-                bool isPointer;
+                size_t pointerCount;
                 bool isLocalArr;
                 size_t localArrSize;
 
-                Variable(size_t offset, std::string type, bool isPointer = false, bool isLocalArr = false, size_t localArrSize = 0) :
-                offset(offset), type(type), isPointer(isPointer), isLocalArr(isLocalArr), localArrSize(localArrSize) {};
+                Variable(size_t offset, std::string type, size_t pointerCount, bool isLocalArr = false, size_t localArrSize = 0) :
+                offset(offset), type(type), pointerCount(pointerCount), isLocalArr(isLocalArr), localArrSize(localArrSize) {};
 
                 uint8_t getSize() const {
-                    if (isPointer) {
+                    if (pointerCount > 0) {
+                        return 8;
+                    }
+                    return typeSizes[type];
+                }
+
+                uint8_t getElementSize() const {
+                    if (pointerCount >= 2) {
                         return 8;
                     }
                     return typeSizes[type];

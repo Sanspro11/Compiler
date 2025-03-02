@@ -188,18 +188,18 @@ struct Assignment : public ASTNode {
 struct VariableDeclaration : public ASTNode {
     std::string varType;
     std::string varName;
-    bool isPointer;
+    size_t pointerCount;
     bool isLocalArray;
     size_t localArrSize;
 
     VariableDeclaration(const std::string& varType, const std::string& varName,
-    bool isPointer = false, bool isLocalArray = false, size_t localArrSize = 0)
-    : varType(varType), varName(varName), isPointer(isPointer), isLocalArray(isLocalArray), localArrSize(localArrSize)
+    size_t pointerCount = 0, bool isLocalArray = false, size_t localArrSize = 0)
+    : varType(varType), varName(varName), pointerCount(pointerCount), isLocalArray(isLocalArray), localArrSize(localArrSize)
     {type = NodeType::VariableDeclaration;}
 
     void print() const override {
         std::cout << "VariableDeclaration: " << varType;
-        if (isPointer) 
+        for (size_t i = 0; i < pointerCount; ++i)
             std::cout << "*";
         std::cout << " " << varName;
         if (isLocalArray)
