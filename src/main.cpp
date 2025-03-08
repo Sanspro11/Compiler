@@ -41,9 +41,9 @@ int main(int argc, char* argv[]) {
         filename += ".o";
     }
 
-    codeGen programGenerator = codeGen();
-    programGenerator.entryFunctionName = "main";
-    bool success = programGenerator.generateObjectFile(treeRoot,filename);
+    CodeGen codeGen = CodeGen();
+    codeGen.entryFunctionName = "main";
+    bool success = codeGen.generateObjectFile(treeRoot,filename);
     if (!success) {
         std::cout << "Error while making object file " << filename;
         exit(1);

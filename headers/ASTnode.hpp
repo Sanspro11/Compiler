@@ -22,6 +22,8 @@ enum class NodeType {
     IfStatement,
     WhileStatement,
     ArrayAccess,
+    Struct,
+    PropertyAccess,
 };
 
 
@@ -190,15 +192,20 @@ struct VariableDeclaration : public ASTNode {
     std::string varName;
     size_t pointerCount;
     bool isLocalArray;
+    bool isStruct;
     size_t localArrSize;
 
     VariableDeclaration(const std::string& varType, const std::string& varName,
-    size_t pointerCount = 0, bool isLocalArray = false, size_t localArrSize = 0)
-    : varType(varType), varName(varName), pointerCount(pointerCount), isLocalArray(isLocalArray), localArrSize(localArrSize)
+    size_t pointerCount = 0, bool isLocalArray = false, size_t localArrSize = 0, bool isStruct = false)
+    : varType(varType), varName(varName), pointerCount(pointerCount), isLocalArray(isLocalArray),
+    localArrSize(localArrSize), isStruct(isStruct)
     {type = NodeType::VariableDeclaration;}
 
     void print() const override {
-        std::cout << "VariableDeclaration: " << varType;
+        std::cout << "VariableDeclaration: "; 
+        if (isStruct) 
+            std::cout << "struct ";
+        std::cout << varType;
         for (size_t i = 0; i < pointerCount; ++i)
             std::cout << "*";
         std::cout << " " << varName;
@@ -302,5 +309,42 @@ struct ArrayAccess : public ASTNode {
             std::cout << "NULL";
         }
         std::cout << "]";
+    }
+};
+
+struct Struct : public ASTNode {
+    std::string name;
+    std::vector<ASTNode*> properties;
+
+    Struct(const std::string& name, std::vector<ASTNode*> properties) :
+    name(name), properties(properties) { type = NodeType::Struct;}
+
+    void print() const override {
+        std::cout << "Struct: " << name << " with varaibles:\n";
+        for (size_t i = 0; i < properties.size(); ++i) {
+            std::cout << (i+1) << ". ";
+            properties[i]->print();
+            std::cout << '\n';
+        }
+    }
+};
+
+struct PropertyAccess : public ASTNode {
+    ASTNode* Struct;
+    std::string property;
+    
+    PropertyAccess(ASTNode* Struct, const std::string& property) 
+        : Struct(Struct), property(property) { 
+        type = NodeType::PropertyAccess; 
+    }
+    
+    void print() const override {
+        std::cout << "Property Access: ";
+        if (Struct) {
+            Struct->print();
+        } else {
+            std::cout << "NULL";
+        }
+        std::cout << '.' << property;
     }
 };

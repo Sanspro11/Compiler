@@ -7,9 +7,12 @@
 ProgramRoot* Parser::parse() {
     ProgramRoot* programRoot = new ProgramRoot();
     while (current().type != tokenType::ENDOFFILE) {
-        //includes
+        //includes, structs, functions
+        if (current().type == tokenType::STRUCT) {
+            ASTNode* structNode = parseStruct();
+            programRoot->programElements.push_back(structNode);
+        }
 
-        //functions
         if (current().type == tokenType::TYPE) { // make separate in future
             ASTNode* function = parseFunction();
             programRoot->programElements.push_back(function);
@@ -63,7 +66,8 @@ ASTNode* Parser::parseStatement() {
         statement = parseReturnStatement();
         require(tokenType::SEMICOLON,";");
     }
-    else if (current().type == tokenType::TYPE) { // declaration
+    else if (current().type == tokenType::TYPE ||
+             current().type == tokenType::STRUCT) { // declaration
         statement = parseDeclaration();
     }
     else if (current().type == tokenType::NAME) {
@@ -182,7 +186,7 @@ ASTNode* Parser::parseExpression() {
                 }
             }
 
-            else { // variable
+            else { // variable/ArrayAccess/StructProperty
                 ASTNode* identifier = parseIdentifier();
                 if (expression == nullptr) {
                     expression = identifier;
@@ -238,8 +242,19 @@ ASTNode* Parser::parseDeclaration() {
     // int x = 1;
     // int* x = malloc(1024);
     // int x[100];
+    // struct Person x;
+    bool isStruct = false;
+    if (current().type == tokenType::STRUCT) {
+        advance(); // struct
+        isStruct = true;
+    }
     std::string type = current().value;
-    require(tokenType::TYPE,"type");
+    if (structNames.find(type) == structNames.end()) { // if not a struct, require type
+        require(tokenType::TYPE,"type");
+    }
+    else {
+        advance(); // struct name
+    }
     size_t pointerCount = 0;
     bool isLocalArray = false;
     size_t localArrSize = 0;
@@ -285,7 +300,7 @@ ASTNode* Parser::parseDeclaration() {
     }
     // if the next token is not a semicolon, stop at the variable name,
     // so the next parseStatement() would begin at "x = 1";
-    return new VariableDeclaration(type,name,pointerCount,isLocalArray,localArrSize);
+    return new VariableDeclaration(type,name,pointerCount,isLocalArray,localArrSize,isStruct);
 }
 
 ASTNode* Parser::parseAssignment() {
@@ -336,13 +351,34 @@ ASTNode* Parser::parseIdentifier() {
     std::string name = current().value;
     Identifier* identifier = new Identifier(name);
     advance(); // name
-    if (!(current().type == tokenType::SQUARE_BRACKET && current().value == "[")) {
-        return identifier;
+    if (current().type == tokenType::SQUARE_BRACKET && current().value == "[") {
+        require(tokenType::SQUARE_BRACKET,"[");
+        ASTNode* expression = parseExpression();
+        require(tokenType::SQUARE_BRACKET,"]");
+        return new ArrayAccess(identifier,expression);
     }
-    require(tokenType::SQUARE_BRACKET,"[");
-    ASTNode* expression = parseExpression();
-    require(tokenType::SQUARE_BRACKET,"]");
-    return new ArrayAccess(identifier,expression);
+    if (current().type == tokenType::DOT) {
+        require(tokenType::DOT,".");
+        std::string propertyName = current().value;
+        advance(); // property name
+        return new PropertyAccess(identifier,propertyName);
+    }
+    return identifier;
+}
+
+ASTNode* Parser::parseStruct() {
+    advance(); // struct
+    std::string name = current().value;
+    structNames[name] = true;
+    advance(); // name
+    require(tokenType::CURLY_BRACKET,"{");
+    std::vector<ASTNode*> properties;
+    while (current().type != CURLY_BRACKET && current().value != "}") {
+        properties.push_back(parseDeclaration());
+    }
+    require(tokenType::CURLY_BRACKET,"}");
+    require(tokenType::SEMICOLON,";");
+    return new Struct(name,properties);
 }
 
 long long Parser::calculateOperation(const long long& value1, const long long& value2, const std::string& operation) {

@@ -154,6 +154,7 @@ std::unordered_map<std::string,tokenType> Lexer::keywords = {
     {"return",tokenType::RETURN},
     {"if",tokenType::IF},
     {"while",tokenType::WHILE},
+    {"struct",tokenType::STRUCT},
     {";",tokenType::SEMICOLON},
     {"+",tokenType::OPERATION},
     {"-",tokenType::OPERATION},
@@ -168,6 +169,7 @@ std::unordered_map<std::string,tokenType> Lexer::keywords = {
     {"[",tokenType::SQUARE_BRACKET},
     {"]",tokenType::SQUARE_BRACKET},
     {",",tokenType::COMMA},
+    {".",tokenType::DOT},
     {"=",tokenType::ASSIGNMENT},
     {"==",tokenType::COMPARISON},
     {"!=",tokenType::COMPARISON},
@@ -183,7 +185,6 @@ std::unordered_map<std::string,tokenType> Lexer::keywords = {
     {"uint8_t",tokenType::TYPE},
     {"char",tokenType::TYPE}
 };
-
 
 std::unordered_map<char,bool> Lexer::symbols = {
     {'+',true},
@@ -203,6 +204,7 @@ std::unordered_map<char,bool> Lexer::symbols = {
     {'&',true},
     {'<',true},
     {'>',true},
+    {'.',true},
 };
 
 std::unordered_map<char,char> Lexer::escapeChars = {

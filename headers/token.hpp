@@ -19,6 +19,8 @@ enum tokenType {
     WHILE,
     COMPARISON,
     SQUARE_BRACKET,
+    STRUCT,
+    DOT,
     ENDOFFILE
 };
 

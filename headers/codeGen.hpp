@@ -52,7 +52,7 @@ struct Elf64_Rela {
 
 #pragma pack(pop) // return the padding
 
-class codeGen {
+class CodeGen {
     public:
         std::string entryFunctionName;
 
@@ -65,10 +65,13 @@ class codeGen {
                 std::string type;
                 size_t pointerCount;
                 bool isLocalArr;
+                bool isStruct;
                 size_t localArrSize;
 
-                Variable(size_t offset, std::string type, size_t pointerCount, bool isLocalArr = false, size_t localArrSize = 0) :
-                offset(offset), type(type), pointerCount(pointerCount), isLocalArr(isLocalArr), localArrSize(localArrSize) {};
+                Variable(size_t offset, std::string type, size_t pointerCount, bool isLocalArr = false,
+                size_t localArrSize = 0, bool isStruct = false) :
+                offset(offset), type(type), pointerCount(pointerCount), isLocalArr(isLocalArr),
+                localArrSize(localArrSize), isStruct(isStruct) {};
 
                 uint8_t getSize() const {
                     if (pointerCount > 0) {
@@ -103,18 +106,18 @@ class codeGen {
         size_t currentStringsOffset = 0;
 
         std::unordered_map<std::string,Variable*> variableNameToObject;
+        std::unordered_map<std::string,std::unordered_map<std::string,Variable*>*> structOffsets;
 
+        static std::unordered_map<std::string,uint8_t> typeSizes;
         static std::unordered_map<uint8_t,std::string> positionToRegister;
         static std::unordered_map<std::string,std::vector<uint8_t>> register64BitMov;
         static std::unordered_map<std::string,std::vector<uint8_t>> register64BitLeaStub;
         static std::unordered_map<std::string,std::vector<uint8_t>> movRegRaxMap;
         static std::unordered_map<std::string,std::vector<uint8_t>> movRaxRegMap;
-        static std::unordered_map<std::string,uint8_t> typeSizes;
         static std::unordered_map<std::string,std::vector<uint8_t>> pushRegCode;
         static std::unordered_map<std::string,std::vector<uint8_t>> popRegCode;
         static std::unordered_map<std::string,std::string> oppositeJumpType;
         static std::unordered_map<std::string,std::vector<uint8_t>> jumpType;
-
 
 
         // Functions
@@ -130,6 +133,7 @@ class codeGen {
         void addIfStatementToCode(std::vector<uint8_t>& code, IfStatement* ifStatement);
         void addWhileStatementToCode(std::vector<uint8_t>& code, WhileStatement* whileStatement);
         size_t addDeclarations(const std::vector<ASTNode*>& parameters, size_t varSizes);
+        void addStruct(Struct* structNode);
         std::vector<uint8_t> generateCodeFromFunction(Function* function);
 
 
@@ -164,6 +168,7 @@ class codeGen {
 
         void addNumToCode(std::vector<uint8_t>& code, uint64_t num, uint8_t size);
         void changeJmpOffset(std::vector<uint8_t>& code, size_t codeOffset, uint32_t jmpSize);
+        size_t getVarNodeSize(VariableDeclaration* node);
 
         // Macros
         // ELF symbol binding and type

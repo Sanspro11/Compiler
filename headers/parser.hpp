@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <unordered_map>
 #include "ASTnode.hpp"
 #include "token.hpp"
 
@@ -10,6 +11,7 @@ class Parser {
 
     private:
         std::vector<Token> tokens;
+        std::unordered_map<std::string,bool> structNames;
         size_t index = 0;
         Token current();
         void advance();
@@ -30,7 +32,6 @@ class Parser {
         ASTNode* parseWhileStatement();
         ASTNode* parseComparison();
         ASTNode* parseIdentifier();
+        ASTNode* parseStruct();
         long long calculateOperation(const long long& value1, const long long& value2, const std::string& operation);
-
-
 };

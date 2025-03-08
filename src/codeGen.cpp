@@ -4,10 +4,10 @@
 #include <vector>
 #include <string>
 #include "ASTnode.hpp"
-#include "codeGen.hpp"
+#include "CodeGen.hpp"
 
 
-bool codeGen::generateObjectFile(ProgramRoot* root, const std::string filename) {
+bool CodeGen::generateObjectFile(ProgramRoot* root, const std::string filename) {
 
     // .text section ------------------------------------------------------------
     std::vector<uint8_t> textData;
@@ -15,6 +15,9 @@ bool codeGen::generateObjectFile(ProgramRoot* root, const std::string filename) 
         if (element->type == NodeType::Function) {
             std::vector<uint8_t> functionCode = generateCodeFromFunction((Function*)element);
             addCode(textData,functionCode);
+        }
+        if (element->type == NodeType::Struct) {
+            addStruct((Struct*)element);
         }
     }
     // take care of non-local functions
@@ -423,7 +426,7 @@ bool codeGen::generateObjectFile(ProgramRoot* root, const std::string filename) 
     return true;
 }
 
-void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expression, std::string reg) {
+void CodeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expression, std::string reg) {
     if (expression->type == NodeType::Constant) {
         Constant* constant = (Constant*)expression;
         if (constant->constantType == "uint64_t") {
@@ -439,7 +442,7 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
     if (expression->type == NodeType::Identifier) {
         Identifier* identifier = (Identifier*)expression;
         const Variable* var = variableNameToObject[identifier->name];
-        if (var->isLocalArr) {
+        if (var->isLocalArr || var->isStruct) {
             addCode(code,leaRaxOffsetRbp(var->offset));
         }
         else {
@@ -463,7 +466,26 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
             addCode(code,movRegRax("rbx"));
             parseExpressionToReg(code,identifier,"rax");
             addCode(code,addRaxRbx());
-            addCode(code,movRaxQwordRax()); // dereference
+            addCode(code,movRaxQwordRax());
+            if (reg != "rax") {
+                addCode(code,movRegRax(reg));
+            }
+        }
+    }
+
+    if (expression->type == NodeType::PropertyAccess) {
+        PropertyAccess* arrAccess = (PropertyAccess*)expression;
+        // only identifier for now
+        if (arrAccess->Struct->type == NodeType::Identifier) {
+            Identifier* identifier = (Identifier*)arrAccess->Struct;
+            const Variable* var = variableNameToObject[identifier->name];
+            const Variable* structVar = (*structOffsets[var->type])[arrAccess->property];
+            parseExpressionToReg(code,identifier,"rax");
+            if (structVar->offset > 0) { // optimization, skipping adding 0
+                addCode(code,movabs("rbx",structVar->offset));
+                addCode(code,addRaxRbx());
+            }
+            addCode(code,movRaxQwordRax());
             if (reg != "rax") {
                 addCode(code,movRegRax(reg));
             }
@@ -533,7 +555,7 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
 
 }
 
-void codeGen::addConstantStringToRegToCode(std::vector<uint8_t>& code,const Constant* constant, const std::string& reg) { 
+void CodeGen::addConstantStringToRegToCode(std::vector<uint8_t>& code,const Constant* constant, const std::string& reg) { 
     const std::string& value = constant->value;
 
     rodataContents += value;
@@ -561,12 +583,12 @@ void codeGen::addConstantStringToRegToCode(std::vector<uint8_t>& code,const Cons
     addCode(code,movabsCodeStub);
 } 
 
-void codeGen::addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement* returnStatement) {
+void CodeGen::addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStatement* returnStatement) {
     parseExpressionToReg(code,returnStatement->expression,"rax");
     addCode(code,leaveFunction());
 }
 
-void codeGen::addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall* functionCall) {
+void CodeGen::addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall* functionCall) {
     std::vector<ASTNode*>& args = functionCall->arguments;
 
     size_t size = std::min(args.size(),(size_t)6);
@@ -591,7 +613,7 @@ void codeGen::addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall* fun
     addCode(code,call());
 }
 
-void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignment) {
+void CodeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignment) {
     // mov [rbp+offset], expression
     const ASTNode* identifierNode = assignment->identifier;
     if (identifierNode->type == NodeType::Identifier) {
@@ -619,10 +641,28 @@ void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignm
             addCode(code,movPtrRaxRbx(sizeOfElement));
         }
     }
+    else if (identifierNode->type == NodeType::PropertyAccess) { 
+        PropertyAccess* arrAccess = (PropertyAccess*)identifierNode;
+        // only identifier for now
+        if (arrAccess->Struct->type == NodeType::Identifier) {
+            Identifier* identifier = (Identifier*)arrAccess->Struct;
+            const Variable* var = variableNameToObject[identifier->name];
+            parseExpressionToReg(code,identifier,"rax");
+            const Variable* structVar = (*structOffsets[var->type])[arrAccess->property];
+            if (structVar->offset > 0) { // optimization, skipping adding 0
+                addCode(code,movabs("rbx",structVar->offset));
+                addCode(code,addRaxRbx());
+            }
+            addCode(code,pushReg("rax"));
+            parseExpressionToReg(code,assignment->expression,"rbx");
+            addCode(code,popReg("rax"));
+            addCode(code,movPtrRaxRbx(structVar->getSize()));
+        }
+    }
 }
 
 
-void codeGen::addCodeBlockToCode(std::vector<uint8_t>& code,CodeBlock* codeBlock) {
+void CodeGen::addCodeBlockToCode(std::vector<uint8_t>& code,CodeBlock* codeBlock) {
     for (const ASTNode* statement : codeBlock->statements) {
         if (statement->type == NodeType::ReturnStatement) {
             ReturnStatement* returnStatement = (ReturnStatement*)statement;
@@ -651,26 +691,24 @@ void codeGen::addCodeBlockToCode(std::vector<uint8_t>& code,CodeBlock* codeBlock
     }
 }
 
-size_t codeGen::addDeclarations(const std::vector<ASTNode*>& parameters, size_t varSizes = 0) {
+size_t CodeGen::addDeclarations(const std::vector<ASTNode*>& parameters, size_t varSizes = 0) {
     for (const ASTNode* statement : parameters) {
         if (statement->type == NodeType::VariableDeclaration) {
             VariableDeclaration* d = (VariableDeclaration*)statement;
-            if (d->pointerCount > 0) {
-                varSizes += 8; // pointer size is always 8 bytes;
-            }
-            else if (d->isLocalArray) {
+            if (d->isLocalArray) {
                 varSizes += d->localArrSize;
             }
             else {
-                varSizes += typeSizes[d->varType];
+                varSizes += getVarNodeSize(d);
             }
-            variableNameToObject[d->varName] = new Variable(varSizes,d->varType,d->pointerCount,d->isLocalArray,d->localArrSize);
+            variableNameToObject[d->varName] = new Variable(varSizes,d->varType,d->pointerCount,
+            d->isLocalArray,d->localArrSize,d->isStruct);
         }
     }
     return varSizes;
 }
 
-void codeGen::addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeBlock, std::vector<ASTNode*>& parameters) {
+void CodeGen::addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeBlock, std::vector<ASTNode*>& parameters) {
     size_t varSizes = addDeclarations(parameters);
     varSizes = addDeclarations(codeBlock->statements,varSizes);
     size_t pad = (16 - (varSizes % 16)) % 16; // pad to 16
@@ -678,7 +716,8 @@ void codeGen::addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeB
     if (varSizes > 0) {
         addCode(code,subRsp(varSizes + pad));
     }
-    for (size_t i = 0; i < parameters.size(); ++i) {
+    size_t size = std::min(parameters.size(),(size_t)6);
+    for (size_t i = 0; i < size; ++i) {
         const std::string& varName = ((VariableDeclaration*)parameters[i])->varName;
         Variable* var = variableNameToObject[varName];
         const std::string& reg = positionToRegister[i];
@@ -687,7 +726,7 @@ void codeGen::addDeclarationsToCode(std::vector<uint8_t>& code, CodeBlock* codeB
     }
 }
 
-void codeGen::addIfStatementToCode(std::vector<uint8_t>& code, IfStatement* ifStatement) {
+void CodeGen::addIfStatementToCode(std::vector<uint8_t>& code, IfStatement* ifStatement) {
     ASTNode* expression = ifStatement->expression;
     std::string op = "jmp";
     if (expression->type == NodeType::ComparisonExpression) {
@@ -702,7 +741,7 @@ void codeGen::addIfStatementToCode(std::vector<uint8_t>& code, IfStatement* ifSt
     changeJmpOffset(code,jmpLocation,jmpSize);
 }
 
-void codeGen::parseComparsionExpressionCmp(std::vector<uint8_t>& code, ASTNode* expression) {
+void CodeGen::parseComparsionExpressionCmp(std::vector<uint8_t>& code, ASTNode* expression) {
     if (expression->type == NodeType::ComparisonExpression) {
         ComparisonExpression* compExpr = (ComparisonExpression*)expression;
         parseExpressionToReg(code,compExpr->left,"rax");
@@ -713,7 +752,7 @@ void codeGen::parseComparsionExpressionCmp(std::vector<uint8_t>& code, ASTNode* 
     }
 }
 
-void codeGen::addWhileStatementToCode(std::vector<uint8_t>& code, WhileStatement* whileStatement) {
+void CodeGen::addWhileStatementToCode(std::vector<uint8_t>& code, WhileStatement* whileStatement) {
     ASTNode* expression = whileStatement->expression;
     std::string op = "jmp";
     if (expression->type == NodeType::ComparisonExpression) {
@@ -733,7 +772,7 @@ void codeGen::addWhileStatementToCode(std::vector<uint8_t>& code, WhileStatement
     changeJmpOffset(code,secondJumpLocation,secondJumpOffset);
 }
 
-std::vector<uint8_t> codeGen::generateCodeFromFunction(Function* function) {
+std::vector<uint8_t> CodeGen::generateCodeFromFunction(Function* function) {
     std::vector<uint8_t> code;
     CodeBlock* codeBlock = function->codeBlock;
     std::vector<ASTNode*>& params = function->parameters;
@@ -764,7 +803,28 @@ std::vector<uint8_t> codeGen::generateCodeFromFunction(Function* function) {
     return code;
 }
 
-void codeGen::changeJmpOffset(std::vector<uint8_t>& code, size_t codeOffset, uint32_t jmpSize) {
+void CodeGen::addStruct(Struct* structNode) {
+    const std::string& name = structNode->name;
+    size_t structSize = 0;
+    structOffsets[name] = new std::unordered_map<std::string,Variable*>();
+    std::unordered_map<std::string,Variable*>& offsets = (*structOffsets[name]);
+    for (const ASTNode* node : structNode->properties) {
+        VariableDeclaration* d = (VariableDeclaration*)node;
+        offsets[d->varName] = new Variable(structSize,d->varType,d->pointerCount,
+        d->isLocalArray,d->localArrSize,d->isStruct);
+        structSize += getVarNodeSize(d);
+    }
+    typeSizes[name] = structSize;
+}
+
+size_t CodeGen::getVarNodeSize(VariableDeclaration* node) {
+    if (node->pointerCount > 0) {
+        return 8; // pointer size is 8 bytes
+    }
+    return typeSizes[node->varType];
+}
+
+void CodeGen::changeJmpOffset(std::vector<uint8_t>& code, size_t codeOffset, uint32_t jmpSize) {
     uint8_t* bytePtr = reinterpret_cast<uint8_t*>(&jmpSize);
     for (size_t i = 0; i < 4; ++i) {
         code[codeOffset] = (*(bytePtr + i));
@@ -772,6 +832,6 @@ void codeGen::changeJmpOffset(std::vector<uint8_t>& code, size_t codeOffset, uin
     }
 }
 
-void codeGen::addCode(std::vector<uint8_t>& code,const std::vector<uint8_t>& codeToAdd) {
+void CodeGen::addCode(std::vector<uint8_t>& code,const std::vector<uint8_t>& codeToAdd) {
     code.insert(code.end(),codeToAdd.begin(),codeToAdd.end());
 }
