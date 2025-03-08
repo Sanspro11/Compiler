@@ -90,6 +90,7 @@ std::vector<uint8_t> codeGen::leaRaxOffsetRbp(uint32_t offset) {
     addNumToCode(code,offset,4);
     return code;
 } // lea rax, [rbp-0xOFFSET]
+// lea rax, [rbp+rax*8+6]
 
 std::vector<uint8_t> codeGen::subRsp(uint32_t num) { 
     std::vector<uint8_t> code = {0x48,0x81,0xEC};
@@ -113,11 +114,23 @@ std::vector<uint8_t> codeGen::subRaxRbx() {
     return {0x48,0x29,0xd8};
 } // sub rax, rbx
 
-std::vector<uint8_t> codeGen::mulRbx() {
+std::vector<uint8_t> codeGen::mulRbx(uint8_t size) {
+    if (size == 4)
+        return {0xf7,0xe3};
+    if (size == 2)
+        return {0x66,0xf7,0xe3};
+    if (size == 1)
+        return {0xf6,0xe3};
     return {0x48,0xf7,0xe3};
 } // mul rbx (result in rdx:rax)
 
-std::vector<uint8_t> codeGen::divRbx() {
+std::vector<uint8_t> codeGen::divRbx(uint8_t size) {
+    if (size == 4)
+        return {0xf7,0xf3};
+    if (size == 2)
+        return {0x66,0xf7,0xf3};
+    if (size == 1)
+        return {0xf6,0xf3};
     return {0x48,0xf7,0xf3};
 } // div rbx (RAX quotient, RDX remainder)
 

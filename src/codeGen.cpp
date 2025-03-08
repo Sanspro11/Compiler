@@ -459,7 +459,7 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
             const Variable* var = variableNameToObject[identifier->name];
             parseExpressionToReg(code,arrAccess->index,"rax");
             addCode(code,movabs("rbx",var->getElementSize()));
-            addCode(code,mulRbx());
+            addCode(code,mulRbx(8));
             addCode(code,movRegRax("rbx"));
             parseExpressionToReg(code,identifier,"rax");
             addCode(code,addRaxRbx());
@@ -500,8 +500,8 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
     }
     if (expression->type == NodeType::BinaryExpression) {
         BinaryExpression* binExpr = (BinaryExpression*)expression;
-        ASTNode*& left = binExpr->left;
-        ASTNode*& right = binExpr->right;
+        ASTNode* left = binExpr->left;
+        ASTNode* right = binExpr->right;
         parseExpressionToReg(code,right,"rax");
         addCode(code,pushReg("rax"));
         parseExpressionToReg(code,left,"rax");
@@ -514,15 +514,15 @@ void codeGen::parseExpressionToReg(std::vector<uint8_t>& code, ASTNode* expressi
             addCode(code,subRaxRbx());
         }
         if (op == "*") {
-            addCode(code,mulRbx());
+            addCode(code,mulRbx(8));
         }
         if (op == "/") {
             addCode(code,movabs("rdx",0));
-            addCode(code,divRbx());
+            addCode(code,divRbx(8));
         }
         if (op == "%") {
             addCode(code,movabs("rdx",0));
-            addCode(code,divRbx());
+            addCode(code,divRbx(8));
             addCode(code,movRaxReg("rdx"));
         }
         if (reg != "rax") {
@@ -569,7 +569,7 @@ void codeGen::addReturnStatementToCode(std::vector<uint8_t>& code ,ReturnStateme
 void codeGen::addFunctionCallToCode(std::vector<uint8_t>& code,FunctionCall* functionCall) {
     std::vector<ASTNode*>& args = functionCall->arguments;
 
-    size_t size = std::min(args.size(),(size_t)5);
+    size_t size = std::min(args.size(),(size_t)6);
     for (size_t i = 0; i < size; ++i) {
         std::string reg = positionToRegister[i];
         parseExpressionToReg(code,args[i],"rax");
@@ -609,7 +609,7 @@ void codeGen::addAssignmentToCode(std::vector<uint8_t>& code,Assignment* assignm
             parseExpressionToReg(code,arrAccess->index,"rax");
             uint8_t sizeOfElement = var->getElementSize();
             addCode(code,movabs("rbx",sizeOfElement)); 
-            addCode(code,mulRbx());
+            addCode(code,mulRbx(8));
             addCode(code,movRegRax("rbx"));
             parseExpressionToReg(code,identifier,"rax");
             addCode(code,addRaxRbx());

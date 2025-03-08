@@ -23,7 +23,7 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
             }
 
             if (ch == '\t') { 
-                row += 4;
+                column += 4;
                 current.clear();
                 continue;
             }
