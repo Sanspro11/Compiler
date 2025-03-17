@@ -1,21 +1,26 @@
 #pragma once
 #include <vector>
 #include <unordered_map>
+#include <string>
 #include "token.hpp"
 
 class Lexer {
     public:
-        static std::vector<Token> tokenize(std::ifstream& fileStream);
+        Lexer(std::string& sourceCode) : sourceCode(sourceCode) {};
+        std::vector<Token> tokenize();
 
     private:
         static std::unordered_map<std::string,tokenType> keywords;
         static std::unordered_map<char,bool> symbols;
         static std::unordered_map<char,char> escapeChars;
-        static bool inString;
-        static size_t row;
-        static size_t column;
+        bool inString;
+        size_t row;
+        size_t column;
+        size_t currentIndex;
+        std::string sourceCode;
 
-        static Token createToken(const std::string& str);
-        static bool isSymbol(const char chr);
-        static bool isKeyword(const std::string& token);
+        Token createToken(const std::string& str);
+        bool isSymbol(const char chr);
+        bool isKeyword(const std::string& token);
+        bool getNextChar(char& ch);
 };

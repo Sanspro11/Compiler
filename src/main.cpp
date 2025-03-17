@@ -1,10 +1,11 @@
 #include <vector>
 #include <fstream>
 #include <string>
+#include "preprocessor.hpp"
 #include "token.hpp"
+#include "lexer.hpp"
 #include "ASTnode.hpp"
 #include "parser.hpp"
-#include "lexer.hpp"
 #include "codeGen.hpp"
 
 int main(int argc, char* argv[]) {
@@ -20,8 +21,13 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    std::vector<Token> tokens = Lexer::tokenize(fileStream);
+    Preprocessor preprocessor = Preprocessor();
+    std::string PreProcessedCode = preprocessor.preProcess(fileStream);
     fileStream.close();
+
+    Lexer lexer = Lexer(PreProcessedCode);
+    std::vector<Token> tokens = lexer.tokenize();
+
     std::cout << "List of tokens:\n";
     for (size_t i = 0; i < tokens.size(); ++i) {
         tokens[i].print();

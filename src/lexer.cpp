@@ -5,13 +5,17 @@
 #include "token.hpp"
 #include "lexer.hpp"
 
-std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
+std::vector<Token> Lexer::tokenize() {
     std::vector<Token> tokens;
     std::string current;
+    inString = false;
+    row = 1;
+    column = 0;
+    currentIndex = 0;
     char ch;
     bool inComment = false;
     try {
-        while (fileStream.get(ch)) {
+        while (getNextChar(ch)) {
             ++column;
 
             if (ch == '\n' || ch == '\r') { 
@@ -33,7 +37,7 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
 
             if (inString && ch != '\"') {
                 if (ch == '\\') {
-                    fileStream.get(ch);
+                    getNextChar(ch);
                     if (escapeChars.find(ch) != escapeChars.end()) {
                         current += escapeChars[ch];
                     }
@@ -47,7 +51,7 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
             }
 
             if (ch == '/') {
-                fileStream.get(ch);
+                getNextChar(ch);
                 if (ch == '/') {
                     inComment = true;
                     continue;
@@ -66,7 +70,7 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
                     current.clear();
                 }
                 current += ch;
-                fileStream.get(ch);
+                getNextChar(ch);
                 current += ch;
                 if (current == "==" || current == "<=" || current == ">=" || current == "!=") {
                     tokens.push_back(createToken(current));
@@ -98,9 +102,9 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
             }
 
             if (ch == '\'') {
-                fileStream.get(ch); 
+                getNextChar(ch); 
                 tokens.push_back(createToken(std::to_string(ch)));
-                fileStream.get(ch); 
+                getNextChar(ch); 
                 continue;
             }
 
@@ -122,6 +126,15 @@ std::vector<Token> Lexer::tokenize(std::ifstream& fileStream) {
         exit(1);
     }
     return tokens;
+}
+
+bool Lexer::getNextChar(char& ch) {
+    if (currentIndex >= sourceCode.size()) {
+        return false;
+    }
+    ch = sourceCode[currentIndex];
+    ++currentIndex;
+    return true;
 }
 
 Token Lexer::createToken(const std::string& str) {
@@ -146,9 +159,6 @@ bool Lexer::isKeyword(const std::string& token) {
     return keywords.find(token) != keywords.end();
 }
 
-bool Lexer::inString = false;
-size_t Lexer::row = 1;
-size_t Lexer::column = 0;
 
 std::unordered_map<std::string,tokenType> Lexer::keywords = {
     {"return",tokenType::RETURN},

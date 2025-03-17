@@ -1,4 +1,3 @@
-#pragma once
 #include <vector>
 #include "parser.hpp"
 #include "token.hpp"
