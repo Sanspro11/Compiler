@@ -16,11 +16,9 @@ class Lexer {
         bool inString;
         size_t row;
         size_t column;
-        size_t currentIndex;
         std::string sourceCode;
 
         Token createToken(const std::string& str);
         bool isSymbol(const char chr);
         bool isKeyword(const std::string& token);
-        bool getNextChar(char& ch);
 };

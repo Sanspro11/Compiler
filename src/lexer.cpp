@@ -11,100 +11,52 @@ std::vector<Token> Lexer::tokenize() {
     inString = false;
     row = 1;
     column = 0;
-    currentIndex = 0;
-    char ch;
-    bool inComment = false;
     try {
-        while (getNextChar(ch)) {
+        for (size_t i = 0; i < sourceCode.size(); ++i) {
             ++column;
+            char ch = sourceCode[i];
 
-            if (ch == '\n' || ch == '\r') { 
-                inComment = false;
-                ++row;
-                column = 0;
-                current.clear();
-                continue;
-            }
-
-            if (ch == '\t') { 
-                column += 4;
-                current.clear();
-                continue;
-            }
-
-            if (inComment) 
-                continue;
-
-            if (inString && ch != '\"') {
-                if (ch == '\\') {
-                    getNextChar(ch);
-                    if (escapeChars.find(ch) != escapeChars.end()) {
-                        current += escapeChars[ch];
-                    }
-                    else {
-                        current += ch; 
-                    }
-                    continue;
-                }
-                current += ch;
-                continue;
-            }
-
-            if (ch == '/') {
-                getNextChar(ch);
-                if (ch == '/') {
-                    inComment = true;
-                    continue;
-                }
-
-                tokens.push_back(createToken(current));
-                current.clear();
-                tokens.push_back(createToken("/"));
-                current += ch;
-                continue;
-            }
-
-            if (ch == '=' || ch == '<' || ch == '>' || ch == '!') { // 2 char symbols
-                if (!current.empty()) {
-                    tokens.push_back(createToken(current));
-                    current.clear();
-                }
-                current += ch;
-                getNextChar(ch);
-                current += ch;
-                if (current == "==" || current == "<=" || current == ">=" || current == "!=") {
-                    tokens.push_back(createToken(current));
+            if (ch == '\n' || ch == '\r' || ch == '\t') { 
+                if (ch == '\t') {
+                    column += 4;
                 }
                 else {
-                    tokens.push_back(createToken(std::string(1,current[0])));
+                    ++row;
+                    column = 0;
                 }
                 current.clear();
                 continue;
             }
 
-            if (ch == '\"') {
-                if (!inString) {
-                    inString = true;
+            if (inString) {
+                if (ch == '\"') { // string end
+                    tokens.push_back(createToken(current));
+                    current.clear();
+                    inString = false;
                     continue;
                 }
-                tokens.push_back(createToken(current));
-                current.clear();
-                inString = false;
-                continue;
-            }
-
-            if (ch == ' ') {
-                if (!current.empty()) {
-                    tokens.push_back(createToken(current));
+                if (ch == '\\') { // escape char
+                    ++i;
+                    ch = sourceCode[i];
+                    if (escapeChars.find(ch) != escapeChars.end()) {
+                        current += escapeChars[ch];
+                        continue;
+                    }
                 }
-                current.clear();
+                current += ch;
                 continue;
             }
 
-            if (ch == '\'') {
-                getNextChar(ch); 
+            if (ch == '\"') { // string start
+                inString = true;
+                continue;
+            }
+
+            if (ch == '\'') { // char
+                ++i;
+                ch = sourceCode[i];
                 tokens.push_back(createToken(std::to_string(ch)));
-                getNextChar(ch); 
+                ++i;
                 continue;
             }
 
@@ -113,7 +65,21 @@ std::vector<Token> Lexer::tokenize() {
                     tokens.push_back(createToken(current));
                     current.clear();
                 }
-                tokens.push_back(createToken(std::string(1,ch)));
+                if (isKeyword(std::string(1,ch) + sourceCode[i+1])) { // 2 chars symbol
+                    ++i;
+                    tokens.push_back(createToken(std::string(1,ch) + sourceCode[i]));
+                }
+                else {
+                    tokens.push_back(createToken(std::string(1,ch)));
+                }
+                continue;
+            }
+
+            if (ch == ' ') {
+                if (!current.empty()) {
+                    tokens.push_back(createToken(current));
+                }
+                current.clear();
                 continue;
             }
 
@@ -126,15 +92,6 @@ std::vector<Token> Lexer::tokenize() {
         exit(1);
     }
     return tokens;
-}
-
-bool Lexer::getNextChar(char& ch) {
-    if (currentIndex >= sourceCode.size()) {
-        return false;
-    }
-    ch = sourceCode[currentIndex];
-    ++currentIndex;
-    return true;
 }
 
 Token Lexer::createToken(const std::string& str) {
@@ -158,7 +115,6 @@ bool Lexer::isSymbol(const char chr) {
 bool Lexer::isKeyword(const std::string& token) {
     return keywords.find(token) != keywords.end();
 }
-
 
 std::unordered_map<std::string,tokenType> Lexer::keywords = {
     {"return",tokenType::RETURN},
